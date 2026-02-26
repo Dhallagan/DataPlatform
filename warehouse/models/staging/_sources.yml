@@ -2,9 +2,11 @@ version: 2
 
 sources:
   - name: bronze_supabase
-    description: Raw tables from Supabase (Postgres)
-    database: postgres
-    schema: public
+    description: Raw tables from source database
+    # Schema varies by target:
+    # - supabase target: public (direct Postgres)
+    # - duckdb target: bronze_supabase (replicated)
+    schema: "{{ 'public' if target.name == 'supabase' else 'bronze_supabase' }}"
     
     tables:
       - name: organizations

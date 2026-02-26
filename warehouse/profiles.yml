@@ -1,13 +1,21 @@
 # =============================================================================
-# dbt Profiles - Supabase Connection
+# dbt Profiles - Multiple Targets
 # =============================================================================
 
 browserbase:
-  target: supabase
+  target: duckdb  # Default to DuckDB (Snowflake simulation)
   outputs:
     
     # -------------------------------------------------------------------------
-    # Supabase (Production-like)
+    # DuckDB - Local Snowflake Simulation
+    # -------------------------------------------------------------------------
+    duckdb:
+      type: duckdb
+      path: "../pipeline/warehouse.duckdb"
+      threads: 4
+    
+    # -------------------------------------------------------------------------
+    # Supabase (Postgres) - Direct connection
     # -------------------------------------------------------------------------
     supabase:
       type: postgres
@@ -20,17 +28,18 @@ browserbase:
       threads: 4
     
     # -------------------------------------------------------------------------
-    # Local Docker (alternative)
+    # Snowflake (Production) - Template
     # -------------------------------------------------------------------------
-    dev:
-      type: postgres
-      host: localhost
-      port: 5432
-      user: browserbase
-      password: browserbase_dev
-      dbname: browserbase
-      schema: public
-      threads: 4
+    # snowflake:
+    #   type: snowflake
+    #   account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+    #   user: "{{ env_var('SNOWFLAKE_USER') }}"
+    #   password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+    #   role: TRANSFORMER
+    #   database: BROWSERBASE
+    #   warehouse: TRANSFORM_WH
+    #   schema: public
+    #   threads: 4
     
     # -------------------------------------------------------------------------
     # Production - Snowflake (template)
