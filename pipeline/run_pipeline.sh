@@ -10,6 +10,19 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+DOTENV_PATH="$PROJECT_DIR/.env"
+
+if [ -f "$DOTENV_PATH" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$DOTENV_PATH"
+  set +a
+fi
+
+DBT_TARGET="${DBT_TARGET:-duckdb}"
+if [ "$DBT_TARGET" = "motherduck" ] && [ -n "${MOTHERDUCK_PATH:-}" ]; then
+  export WAREHOUSE_DUCKDB_PATH="$MOTHERDUCK_PATH"
+fi
 
 echo "============================================================"
 echo "🚀 BROWSERBASE DATA PIPELINE"
@@ -19,12 +32,12 @@ echo "This simulates the full production pipeline:"
 echo "  Supabase (Postgres) → Fivetran → Snowflake → dbt → Hex"
 echo ""
 echo "Using local equivalents:"
-echo "  Supabase → replicate.py → DuckDB → dbt"
+echo "  Supabase → replicate.py → DuckDB/MotherDuck → dbt ($DBT_TARGET)"
 echo ""
 
-# Step 1: Replicate from Supabase to DuckDB (Bronze layer)
+# Step 1: Replicate from Supabase to DuckDB / MotherDuck (Bronze layer)
 echo "============================================================"
-echo "STEP 1: Replicate Supabase → DuckDB (Bronze)"
+echo "STEP 1: Replicate Supabase → DuckDB/MotherDuck (Bronze)"
 echo "============================================================"
 cd "$SCRIPT_DIR"
 python3 replicate.py
@@ -35,14 +48,14 @@ echo "============================================================"
 echo "STEP 2: Run dbt Transformations (Bronze → Silver → Gold)"
 echo "============================================================"
 cd "$PROJECT_DIR/warehouse"
-dbt run --target duckdb
+dbt run --target "$DBT_TARGET"
 
 # Step 3: Run dbt tests
 echo ""
 echo "============================================================"
 echo "STEP 3: Run Data Quality Tests"
 echo "============================================================"
-dbt test --target duckdb || echo "⚠️  Some tests failed (expected with sample data)"
+dbt test --target "$DBT_TARGET" || echo "⚠️  Some tests failed (expected with sample data)"
 
 # Step 4: Show summary
 echo ""
@@ -55,8 +68,8 @@ echo "Silver (clean): silver_stg.*, silver_core.*"
 echo "Gold (metrics): gold_marts.*, gold_metrics.*"
 echo ""
 echo "Query the warehouse:"
-echo "  python3 -c \"import duckdb; conn = duckdb.connect('pipeline/warehouse.duckdb'); print(conn.execute('SELECT * FROM gold_metrics.v_mrr').df())\""
+echo "  WAREHOUSE_DUCKDB_PATH=<path-or-md:db> python3 pipeline/query_warehouse.py"
 echo ""
 echo "Or open DuckDB CLI:"
-echo "  duckdb pipeline/warehouse.duckdb"
+echo "  duckdb \${WAREHOUSE_DUCKDB_PATH:-pipeline/warehouse.duckdb}"
 echo ""

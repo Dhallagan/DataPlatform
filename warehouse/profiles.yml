@@ -11,7 +11,15 @@ browserbase:
     # -------------------------------------------------------------------------
     duckdb:
       type: duckdb
-      path: "../pipeline/warehouse.duckdb"
+      path: "{{ env_var('WAREHOUSE_DUCKDB_PATH', '../pipeline/warehouse.duckdb') }}"
+      threads: 4
+
+    # -------------------------------------------------------------------------
+    # MotherDuck - Cloud DuckDB
+    # -------------------------------------------------------------------------
+    motherduck:
+      type: duckdb
+      path: "{{ env_var('MOTHERDUCK_PATH') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
       threads: 4
     
     # -------------------------------------------------------------------------
@@ -19,12 +27,12 @@ browserbase:
     # -------------------------------------------------------------------------
     supabase:
       type: postgres
-      host: db.ixmbjqcguznhdwhbiuop.supabase.co
-      port: 5432
-      user: postgres
-      password: "{{ env_var('SUPABASE_DB_PASSWORD', 'KkFuD2cko6W51fnJ') }}"
-      dbname: postgres
-      schema: public
+      host: "{{ env_var('SUPABASE_DB_HOST') }}"
+      port: "{{ env_var('SUPABASE_DB_PORT', '5432') | int }}"
+      user: "{{ env_var('SUPABASE_DB_USER', 'postgres') }}"
+      password: "{{ env_var('SUPABASE_DB_PASSWORD') }}"
+      dbname: "{{ env_var('SUPABASE_DB_NAME', 'postgres') }}"
+      schema: "{{ env_var('SUPABASE_DB_SCHEMA', 'public') }}"
       threads: 4
     
     # -------------------------------------------------------------------------

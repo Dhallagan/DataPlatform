@@ -55,6 +55,10 @@ Organizations ──┬── Users
 ### 1. Start the Database
 
 ```bash
+# Configure local secrets (never commit .env)
+cp env.example .env
+# Optional cloud warehouse: set MOTHERDUCK_PATH + MOTHERDUCK_TOKEN in .env
+
 # Generate seed data
 cd supabase && python3 seed_data.py
 

@@ -14,9 +14,43 @@ from datetime import datetime
 urllib3.disable_warnings()
 
 # Configuration
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://ixmbjqcguznhdwhbiuop.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4bWJqcWNndXpuaGR3aGJpdW9wIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjA2NDE2MiwiZXhwIjoyMDg3NjQwMTYyfQ.3zPO-QDnkm4BG6nHiyg_aVTBzsQgca5h3b4Od1dy7Ww")
-WAREHOUSE_PATH = os.path.join(os.path.dirname(__file__), "warehouse.duckdb")
+def load_dotenv_if_present():
+    """Load a .env file from project root or pipeline dir into process env."""
+    search_paths = [
+        os.path.join(os.path.dirname(__file__), "..", ".env"),
+        os.path.join(os.path.dirname(__file__), ".env"),
+    ]
+
+    for env_path in search_paths:
+        env_path = os.path.abspath(env_path)
+        if not os.path.exists(env_path):
+            continue
+
+        with open(env_path, "r", encoding="utf-8") as env_file:
+            for raw_line in env_file:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                os.environ.setdefault(key, value)
+        break
+
+
+load_dotenv_if_present()
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+WAREHOUSE_PATH = os.environ.get(
+    "WAREHOUSE_DUCKDB_PATH",
+    os.environ.get(
+        "MOTHERDUCK_PATH",
+        os.path.join(os.path.dirname(__file__), "warehouse.duckdb")
+    )
+)
+MOTHERDUCK_TOKEN = os.environ.get("MOTHERDUCK_TOKEN")
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Tables to replicate (in dependency order)
 TABLES = [
@@ -290,7 +324,30 @@ def sync_table(conn, table_name: str, rows: list):
     print(f"  ✓ {table_name}: {len(rows)} rows")
 
 
+def connect_warehouse():
+    """Connect to local DuckDB file or MotherDuck based on WAREHOUSE_DUCKDB_PATH."""
+    resolved_path = WAREHOUSE_PATH
+    if not resolved_path.startswith("md:") and not os.path.isabs(resolved_path):
+        resolved_path = os.path.abspath(os.path.join(PROJECT_ROOT, resolved_path))
+
+    connection_kwargs = {}
+    if resolved_path.startswith("md:"):
+        if not MOTHERDUCK_TOKEN:
+            raise ValueError(
+                "WAREHOUSE_DUCKDB_PATH is an md: path but MOTHERDUCK_TOKEN is missing."
+            )
+        connection_kwargs["config"] = {"motherduck_token": MOTHERDUCK_TOKEN}
+
+    return duckdb.connect(resolved_path, **connection_kwargs)
+
+
 def main():
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise ValueError(
+            "Missing required environment variables: SUPABASE_URL and/or "
+            "SUPABASE_SERVICE_KEY. Add them to .env or export them in your shell."
+        )
+
     print("=" * 60)
     print("🔄 REPLICATION SIMULATOR (Fivetran/Airbyte)")
     print("=" * 60)
@@ -298,8 +355,8 @@ def main():
     print(f"Target: {WAREHOUSE_PATH}")
     print()
     
-    # Connect to DuckDB (creates file if doesn't exist)
-    conn = duckdb.connect(WAREHOUSE_PATH)
+    # Connect to local DuckDB or MotherDuck
+    conn = connect_warehouse()
     
     # Create bronze schema
     print("Creating bronze schema...")

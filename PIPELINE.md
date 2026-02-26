@@ -58,6 +58,14 @@ We use **DuckDB** as a local Snowflake stand-in because:
 
 ## Running the Full Pipeline
 
+Before running, create local env config:
+
+```bash
+cp env.example .env
+# then fill in SUPABASE_URL and SUPABASE_SERVICE_KEY.
+# for MotherDuck, also set MOTHERDUCK_PATH + MOTHERDUCK_TOKEN.
+```
+
 ### 1. Replicate from Supabase → DuckDB (Bronze)
 
 ```bash
@@ -77,11 +85,21 @@ cd warehouse
 dbt run --target duckdb
 ```
 
+To use MotherDuck instead:
+
+```bash
+cd warehouse
+dbt run --target motherduck
+```
+
 This runs all dbt models:
 - **Staging (stg_*)**: Basic cleaning and typing
 - **Core (core_*)**: Business entities with enrichment
 - **Marts (fct_*)**: Aggregated facts
 - **Metrics (v_*)**: KPI views for consumption
+
+Schema naming note:
+- dbt is configured to keep schema names exactly as declared (`silver_stg`, `silver_core`, `gold_marts`, `gold_metrics`) without a `main_` prefix.
 
 ### 3. Query the Warehouse
 
@@ -99,18 +117,18 @@ conn = duckdb.connect('pipeline/warehouse.duckdb')
 
 # MRR by plan
 conn.execute("""
-    SELECT * FROM main_gold_metrics.v_mrr
+    SELECT * FROM gold_metrics.v_mrr
 """).df()
 
 # Active organizations
 conn.execute("""
-    SELECT * FROM main_gold_metrics.v_active_organizations
+    SELECT * FROM gold_metrics.v_active_organizations
     WHERE activity_tier = 'high_activity'
 """).df()
 
 # Daily sessions
 conn.execute("""
-    SELECT * FROM main_gold_marts.fct_daily_sessions
+    SELECT * FROM gold_marts.fct_daily_sessions
     ORDER BY session_date DESC
     LIMIT 30
 """).df()
@@ -120,6 +138,12 @@ conn.execute("""
 
 ```bash
 ./pipeline/run_pipeline.sh
+```
+
+Use MotherDuck with the one-line runner:
+
+```bash
+DBT_TARGET=motherduck ./pipeline/run_pipeline.sh
 ```
 
 ## Medallion Layer Details
