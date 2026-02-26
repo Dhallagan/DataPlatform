@@ -1,0 +1,96 @@
+version: 2
+
+sources:
+  - name: bronze_supabase
+    description: Raw tables replicated from Supabase (Postgres)
+    database: "{{ env_var('SNOWFLAKE_DATABASE', 'BROWSERBASE') }}"
+    schema: bronze_supabase
+    
+    tables:
+      - name: organizations
+        description: Customer organizations (the billing entity)
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: users
+        description: Individual users
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: organization_members
+        description: Junction table for users ↔ organizations
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: plans
+        description: Subscription pricing plans
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: subscriptions
+        description: Organization subscriptions to plans
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: api_keys
+        description: API keys for programmatic access
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: projects
+        description: Logical groupings of sessions within an org
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: browser_sessions
+        description: Core product - browser session instances
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: session_events
+        description: Events that occurred during browser sessions
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: usage_records
+        description: Monthly usage aggregates per organization
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+      
+      - name: invoices
+        description: Billing invoices
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null

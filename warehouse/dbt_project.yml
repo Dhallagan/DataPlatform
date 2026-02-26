@@ -1,0 +1,71 @@
+name: 'browserbase_warehouse'
+version: '1.0.0'
+config-version: 2
+
+profile: 'browserbase'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# =============================================================================
+# Model Configuration (Medallion Architecture)
+# =============================================================================
+models:
+  browserbase_warehouse:
+    
+    # -------------------------------------------------------------------------
+    # STAGING (Silver Layer - Cleaned & Standardized)
+    # -------------------------------------------------------------------------
+    staging:
+      +schema: silver_stg
+      +materialized: view
+      +tags: ['staging', 'silver']
+      +docs:
+        show: true
+    
+    # -------------------------------------------------------------------------
+    # CORE (Silver Layer - Canonical Entities)
+    # -------------------------------------------------------------------------
+    core:
+      +schema: silver_core
+      +materialized: table
+      +tags: ['core', 'silver', 'entity']
+      +docs:
+        show: true
+    
+    # -------------------------------------------------------------------------
+    # MARTS (Gold Layer - Facts & Dimensions)
+    # -------------------------------------------------------------------------
+    marts:
+      +schema: gold_marts
+      +materialized: table
+      +tags: ['marts', 'gold', 'fact']
+      +docs:
+        show: true
+    
+    # -------------------------------------------------------------------------
+    # METRICS (Gold Layer - Semantic Views for BI)
+    # -------------------------------------------------------------------------
+    metrics:
+      +schema: gold_metrics
+      +materialized: view
+      +tags: ['metrics', 'gold', 'semantic']
+      +docs:
+        show: true
+
+# =============================================================================
+# Variables
+# =============================================================================
+vars:
+  # Date range for filtering (useful for dev)
+  start_date: '2025-08-01'
+  end_date: '2026-02-28'

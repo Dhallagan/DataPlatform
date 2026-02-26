@@ -1,0 +1,37 @@
+# =============================================================================
+# dbt Profiles - Local Development
+# =============================================================================
+# For production, use environment variables or a secrets manager
+# This file is for local prototyping only
+# =============================================================================
+
+browserbase:
+  target: dev
+  outputs:
+    
+    # -------------------------------------------------------------------------
+    # Development - Local Postgres (Docker)
+    # -------------------------------------------------------------------------
+    dev:
+      type: postgres
+      host: localhost
+      port: 5432
+      user: browserbase
+      password: browserbase_dev
+      dbname: browserbase
+      schema: public
+      threads: 4
+    
+    # -------------------------------------------------------------------------
+    # Production - Snowflake (template)
+    # -------------------------------------------------------------------------
+    # prod:
+    #   type: snowflake
+    #   account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+    #   user: "{{ env_var('SNOWFLAKE_USER') }}"
+    #   password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+    #   role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
+    #   database: BROWSERBASE
+    #   warehouse: TRANSFORM_WH
+    #   schema: public
+    #   threads: 4
