@@ -172,10 +172,19 @@ DBT_TARGET=motherduck ./pipeline/run_pipeline.sh
 |-------|-------------|
 | fct_daily_sessions | Daily session aggregates per org |
 | fct_monthly_revenue | Monthly revenue by org/plan |
+| fct_growth_daily | Growth funnel and active org trends by day |
+| fct_product_daily | Product adoption and engagement by day |
+| fct_engineering_daily | Reliability and latency KPIs by day |
+| fct_ops_daily | Capacity and operational utilization by day |
+| metric_spine_daily | Canonical daily metrics table (org x day) for self-serve |
 | v_mrr | Current MRR snapshot |
 | v_active_organizations | Orgs with 30-day activity |
 | v_cohort_retention | Weekly cohort retention |
 | v_daily_kpis | Executive dashboard metrics |
+| v_growth_kpis | 30-day growth KPI snapshot |
+| v_product_kpis | 30-day product KPI snapshot |
+| v_engineering_kpis | 30-day engineering KPI snapshot |
+| v_ops_kpis | 30-day operations KPI snapshot |
 
 ## Production Deployment
 

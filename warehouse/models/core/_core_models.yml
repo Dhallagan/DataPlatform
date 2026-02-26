@@ -1,0 +1,145 @@
+version: 2
+
+models:
+  - name: core_organizations
+    description: Canonical organization entity with subscription and usage context.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'suspended', 'churned']
+      - name: current_plan_name
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['free', 'starter', 'pro', 'enterprise']
+                quote: true
+              config:
+                where: "current_plan_name is not null"
+
+  - name: core_users
+    description: Canonical user entity with organization context.
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+          - unique
+      - name: primary_organization_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('core_organizations')
+                field: organization_id
+              config:
+                where: "primary_organization_id is not null"
+
+  - name: core_sessions
+    description: Canonical browser session entity with derived metrics.
+    columns:
+      - name: session_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_organizations')
+                field: organization_id
+      - name: session_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'running', 'completed', 'failed', 'timeout']
+
+  - name: dim_org
+    description: Organization dimension exposed for semantic joins.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_status
+        tests:
+          - not_null
+
+  - name: dim_user
+    description: User dimension exposed for semantic joins.
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_org')
+                field: organization_id
+              config:
+                where: "organization_id is not null"
+
+  - name: fct_browser_run
+    description: Canonical browser run fact table.
+    columns:
+      - name: run_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_org')
+                field: organization_id
+      - name: run_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'running', 'completed', 'failed', 'timeout']
+
+  - name: fct_event
+    description: Canonical event fact table.
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+          - unique
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_browser_run')
+                field: run_id
+
+  - name: fct_subscription
+    description: Canonical subscription fact table.
+    columns:
+      - name: subscription_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_org')
+                field: organization_id
+      - name: subscription_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['trialing', 'active', 'past_due', 'canceled']

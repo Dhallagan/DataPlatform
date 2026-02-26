@@ -51,6 +51,14 @@ models:
       +tags: ['marts', 'gold', 'fact']
       +docs:
         show: true
+      growth:
+        +tags: ['marts', 'gold', 'growth']
+      product:
+        +tags: ['marts', 'gold', 'product']
+      engineering:
+        +tags: ['marts', 'gold', 'engineering']
+      ops:
+        +tags: ['marts', 'gold', 'ops']
     
     # -------------------------------------------------------------------------
     # METRICS (Gold Layer - Semantic Views for BI)

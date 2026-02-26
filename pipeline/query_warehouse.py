@@ -141,6 +141,23 @@ daily = conn.execute(f"""
 """).fetchdf()
 print(daily.to_string(index=False))
 
+# Metric Spine (canonical self-serve table)
+print("\n🧩 METRIC SPINE (from gold_metrics.metric_spine_daily)")
+print("-" * 70)
+spine = conn.execute(f"""
+    SELECT
+        metric_date,
+        COUNT(DISTINCT organization_id) AS orgs,
+        SUM(runs) AS runs,
+        ROUND(AVG(success_rate_pct), 2) AS avg_success_rate_pct,
+        ROUND(SUM(mrr_usd), 2) AS mrr_usd
+    FROM {gold_metrics_schema}.metric_spine_daily
+    GROUP BY metric_date
+    ORDER BY metric_date DESC
+    LIMIT 10
+""").fetchdf()
+print(spine.to_string(index=False))
+
 # Cohort Retention
 print("\n🔄 COHORT RETENTION (from gold_metrics.v_cohort_retention)")
 print("-" * 70)
@@ -151,6 +168,46 @@ cohort = conn.execute(f"""
     LIMIT 15
 """).fetchdf()
 print(cohort.to_string(index=False))
+
+# Growth KPI Snapshot
+print("\n🚀 GROWTH KPIS (last 30d)")
+print("-" * 70)
+growth = conn.execute(f"""
+    SELECT *
+    FROM {gold_metrics_schema}.v_growth_kpis
+    LIMIT 1
+""").fetchdf()
+print(growth.to_string(index=False))
+
+# Product KPI Snapshot
+print("\n🧭 PRODUCT KPIS (last 30d)")
+print("-" * 70)
+product = conn.execute(f"""
+    SELECT *
+    FROM {gold_metrics_schema}.v_product_kpis
+    LIMIT 1
+""").fetchdf()
+print(product.to_string(index=False))
+
+# Engineering KPI Snapshot
+print("\n🛠️ ENGINEERING KPIS (last 30d)")
+print("-" * 70)
+engineering = conn.execute(f"""
+    SELECT *
+    FROM {gold_metrics_schema}.v_engineering_kpis
+    LIMIT 1
+""").fetchdf()
+print(engineering.to_string(index=False))
+
+# Ops KPI Snapshot
+print("\n⚙️ OPS KPIS (last 30d)")
+print("-" * 70)
+ops = conn.execute(f"""
+    SELECT *
+    FROM {gold_metrics_schema}.v_ops_kpis
+    LIMIT 1
+""").fetchdf()
+print(ops.to_string(index=False))
 
 print("\n" + "=" * 70)
 print("✅ Data flowing through: Supabase → Bronze → Silver → Gold")

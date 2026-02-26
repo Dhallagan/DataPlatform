@@ -43,6 +43,10 @@ Organizations ──┬── Users
 - **`v_mrr`** - Monthly Recurring Revenue breakdown
 - **`v_daily_kpis`** - Daily platform health metrics
 - **`v_cohort_retention`** - Weekly retention by signup cohort
+- **`v_growth_kpis`** - 30-day growth funnel and active org KPIs
+- **`v_product_kpis`** - 30-day product adoption and engagement KPIs
+- **`v_engineering_kpis`** - 30-day reliability and latency KPIs
+- **`v_ops_kpis`** - 30-day operational capacity and utilization KPIs
 
 ## 🚀 Quick Start
 
@@ -169,12 +173,20 @@ BrowserBase/
         │   └── core_sessions.sql
         ├── marts/          # Gold - Facts
         │   ├── fct_daily_sessions.sql
-        │   └── fct_monthly_revenue.sql
+        │   ├── fct_monthly_revenue.sql
+        │   ├── growth/fct_growth_daily.sql
+        │   ├── product/fct_product_daily.sql
+        │   ├── engineering/fct_engineering_daily.sql
+        │   └── ops/fct_ops_daily.sql
         └── metrics/        # Gold - Semantic layer
             ├── v_active_organizations.sql
             ├── v_mrr.sql
             ├── v_daily_kpis.sql
-            └── v_cohort_retention.sql
+            ├── v_cohort_retention.sql
+            ├── v_growth_kpis.sql
+            ├── v_product_kpis.sql
+            ├── v_engineering_kpis.sql
+            └── v_ops_kpis.sql
 ```
 
 ## 🔑 Key Concepts Demonstrated

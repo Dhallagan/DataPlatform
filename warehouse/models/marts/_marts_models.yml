@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: fct_daily_sessions
+    description: Daily session aggregates per organization.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: session_date
+        tests:
+          - not_null
+      - name: total_sessions
+        tests:
+          - not_null
+
+  - name: fct_monthly_revenue
+    description: Monthly revenue aggregates per organization.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: revenue_month
+        tests:
+          - not_null
+      - name: gross_revenue_usd
+        tests:
+          - not_null
+
+  - name: fct_growth_daily
+    description: Daily growth and activation metrics.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: new_organizations
+        tests:
+          - not_null
+      - name: new_users
+        tests:
+          - not_null
+
+  - name: fct_product_daily
+    description: Daily product engagement and feature adoption.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: total_sessions
+        tests:
+          - not_null
+      - name: success_rate_pct
+        tests:
+          - not_null
+
+  - name: fct_engineering_daily
+    description: Daily reliability and latency metrics.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: total_sessions
+        tests:
+          - not_null
+      - name: success_rate_pct
+        tests:
+          - not_null
+
+  - name: fct_ops_daily
+    description: Daily operational capacity and utilization metrics.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: total_sessions
+        tests:
+          - not_null
+      - name: active_organizations
+        tests:
+          - not_null

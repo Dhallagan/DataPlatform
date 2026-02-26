@@ -1,0 +1,78 @@
+version: 2
+
+models:
+  - name: stg_organizations
+    description: Cleaned organizations from bronze.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'suspended', 'churned']
+
+  - name: stg_users
+    description: Cleaned users from bronze.
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+          - unique
+      - name: email
+        tests:
+          - not_null
+
+  - name: stg_plans
+    description: Cleaned plans from bronze.
+    columns:
+      - name: plan_id
+        tests:
+          - not_null
+          - unique
+      - name: plan_name
+        tests:
+          - not_null
+      - name: monthly_price_usd
+        tests:
+          - not_null
+
+  - name: stg_subscriptions
+    description: Cleaned subscriptions from bronze.
+    columns:
+      - name: subscription_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+      - name: plan_id
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['trialing', 'active', 'past_due', 'canceled']
+
+  - name: stg_browser_sessions
+    description: Cleaned browser sessions from bronze.
+    columns:
+      - name: session_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'running', 'completed', 'failed', 'timeout']

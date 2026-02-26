@@ -1,0 +1,114 @@
+version: 2
+
+models:
+  - name: metric_spine_daily
+    description: Canonical organization-level daily metric spine for self-serve analytics.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_org')
+                field: organization_id
+      - name: runs
+        tests:
+          - not_null
+      - name: successful_runs
+        tests:
+          - not_null
+      - name: success_rate_pct
+        tests:
+          - not_null
+      - name: mrr_usd
+        tests:
+          - not_null
+
+  - name: v_mrr
+    description: Current monthly recurring revenue snapshot.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+      - name: total_mrr_usd
+        tests:
+          - not_null
+      - name: total_paying_customers
+        tests:
+          - not_null
+
+  - name: v_active_organizations
+    description: Active organizations in the last 30 days.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - unique
+      - name: activity_tier
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['low_activity', 'medium_activity', 'high_activity']
+
+  - name: v_daily_kpis
+    description: Daily executive KPI rollup.
+    columns:
+      - name: date
+        tests:
+          - not_null
+          - unique
+      - name: total_sessions
+        tests:
+          - not_null
+      - name: success_rate_pct
+        tests:
+          - not_null
+
+  - name: v_cohort_retention
+    description: Weekly organization cohort retention.
+    columns:
+      - name: cohort_week
+        tests:
+          - not_null
+      - name: weeks_since_signup
+        tests:
+          - not_null
+      - name: retention_pct
+        tests:
+          - not_null
+
+  - name: v_growth_kpis
+    description: 30-day growth KPI summary.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+          - unique
+
+  - name: v_product_kpis
+    description: 30-day product KPI summary.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+          - unique
+
+  - name: v_engineering_kpis
+    description: 30-day engineering KPI summary.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+          - unique
+
+  - name: v_ops_kpis
+    description: 30-day ops KPI summary.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+          - unique
