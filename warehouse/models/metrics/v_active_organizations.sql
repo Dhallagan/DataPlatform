@@ -11,7 +11,7 @@ WITH org_activity AS (
         MAX(session_date) AS last_session_date,
         COUNT(*) AS sessions_last_30d
     FROM {{ ref('core_sessions') }}
-    WHERE session_date >= DATEADD('day', -30, CURRENT_DATE())
+    WHERE session_date >= CURRENT_DATE - INTERVAL '30 days'
     GROUP BY 1
 )
 

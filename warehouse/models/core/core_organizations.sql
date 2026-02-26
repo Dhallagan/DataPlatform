@@ -11,12 +11,16 @@ WITH organizations AS (
 ),
 
 subscriptions AS (
-    SELECT * FROM {{ ref('stg_subscriptions') }}
-    WHERE status = 'active'
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY organization_id 
-        ORDER BY created_at DESC
-    ) = 1
+    SELECT * FROM (
+        SELECT *,
+            ROW_NUMBER() OVER (
+                PARTITION BY organization_id 
+                ORDER BY created_at DESC
+            ) as rn
+        FROM {{ ref('stg_subscriptions') }}
+        WHERE status = 'active'
+    ) ranked
+    WHERE rn = 1
 ),
 
 plans AS (
@@ -80,7 +84,7 @@ final AS (
         s.current_period_end,
         
         -- Derived: Account Age
-        DATEDIFF('day', o.created_at, CURRENT_TIMESTAMP()) AS account_age_days,
+        EXTRACT(DAY FROM (CURRENT_TIMESTAMP - o.created_at))::INTEGER AS account_age_days,
         
         -- Derived: Is Paying Customer
         CASE 
@@ -92,12 +96,12 @@ final AS (
         -- Derived: Days Since Last Activity
         CASE 
             WHEN ss.last_session_at IS NOT NULL 
-            THEN DATEDIFF('day', ss.last_session_at, CURRENT_TIMESTAMP())
+            THEN EXTRACT(DAY FROM (CURRENT_TIMESTAMP - ss.last_session_at))::INTEGER
             ELSE NULL
         END AS days_since_last_session,
         
         -- Metadata
-        CURRENT_TIMESTAMP() AS _loaded_at
+        CURRENT_TIMESTAMP AS _loaded_at
         
     FROM organizations o
     LEFT JOIN subscriptions s ON o.organization_id = s.organization_id

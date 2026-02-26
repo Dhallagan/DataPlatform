@@ -32,14 +32,14 @@ staged AS (
         LOWER(TRIM(status))::TEXT                   AS status,
         
         -- Timing
-        started_at::TIMESTAMP_NTZ                   AS started_at,
-        ended_at::TIMESTAMP_NTZ                     AS ended_at,
-        timeout_at::TIMESTAMP_NTZ                   AS timeout_at,
+        started_at::TIMESTAMP                   AS started_at,
+        ended_at::TIMESTAMP                     AS ended_at,
+        timeout_at::TIMESTAMP                   AS timeout_at,
         
         -- Calculated: session duration in seconds
         CASE 
             WHEN ended_at IS NOT NULL AND started_at IS NOT NULL 
-            THEN DATEDIFF('second', started_at, ended_at)
+            THEN EXTRACT(EPOCH FROM (ended_at - started_at))::INTEGER
             ELSE NULL
         END                                         AS duration_seconds,
         
@@ -53,11 +53,11 @@ staged AS (
         bytes_uploaded::BIGINT                      AS bytes_uploaded,
         
         -- Timestamps
-        created_at::TIMESTAMP_NTZ                   AS created_at,
-        updated_at::TIMESTAMP_NTZ                   AS updated_at,
+        created_at::TIMESTAMP                   AS created_at,
+        updated_at::TIMESTAMP                   AS updated_at,
         
         -- Metadata
-        CURRENT_TIMESTAMP()                         AS _loaded_at
+        CURRENT_TIMESTAMP                         AS _loaded_at
         
     FROM source
 )

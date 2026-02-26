@@ -39,7 +39,7 @@ daily_agg AS (
         -- Duration Metrics
         SUM(s.duration_seconds) AS total_duration_seconds,
         AVG(s.duration_seconds) AS avg_duration_seconds,
-        MEDIAN(s.duration_seconds) AS median_duration_seconds,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.duration_seconds) AS median_duration_seconds,
         MAX(s.duration_seconds) AS max_duration_seconds,
         
         -- Usage Metrics
@@ -100,7 +100,7 @@ SELECT
     d.unique_domains_visited,
     
     -- Metadata
-    CURRENT_TIMESTAMP() AS _loaded_at
+    CURRENT_TIMESTAMP AS _loaded_at
 
 FROM daily_agg d
 LEFT JOIN organizations o ON d.organization_id = o.organization_id

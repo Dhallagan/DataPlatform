@@ -13,7 +13,7 @@ WITH sessions AS (
 -- Count events per session
 event_counts AS (
     SELECT
-        session_id,
+        session_id::TEXT as session_id,
         COUNT(*) AS event_count,
         COUNT(CASE WHEN event_type = 'navigation' THEN 1 END) AS navigation_count,
         COUNT(CASE WHEN event_type = 'click' THEN 1 END) AS click_count,
@@ -95,7 +95,7 @@ final AS (
         s.created_at,
         
         -- Metadata
-        CURRENT_TIMESTAMP() AS _loaded_at
+        CURRENT_TIMESTAMP AS _loaded_at
         
     FROM sessions s
     LEFT JOIN event_counts e ON s.session_id = e.session_id

@@ -28,12 +28,12 @@ staged AS (
         LOWER(TRIM(status))::TEXT               AS status,
         
         -- Timestamps
-        created_at::TIMESTAMP_NTZ               AS created_at,
-        updated_at::TIMESTAMP_NTZ               AS updated_at,
-        last_login_at::TIMESTAMP_NTZ            AS last_login_at,
+        created_at::TIMESTAMP               AS created_at,
+        updated_at::TIMESTAMP               AS updated_at,
+        last_login_at::TIMESTAMP            AS last_login_at,
         
         -- Metadata
-        CURRENT_TIMESTAMP()                     AS _loaded_at
+        CURRENT_TIMESTAMP                     AS _loaded_at
         
     FROM source
 )

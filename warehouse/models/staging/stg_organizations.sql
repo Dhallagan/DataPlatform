@@ -27,11 +27,11 @@ staged AS (
         LOWER(TRIM(status))::TEXT               AS status,
         
         -- Timestamps (standardize to UTC)
-        created_at::TIMESTAMP_NTZ               AS created_at,
-        updated_at::TIMESTAMP_NTZ               AS updated_at,
+        created_at::TIMESTAMP               AS created_at,
+        updated_at::TIMESTAMP               AS updated_at,
         
         -- Metadata
-        CURRENT_TIMESTAMP()                     AS _loaded_at
+        CURRENT_TIMESTAMP                     AS _loaded_at
         
     FROM source
 )

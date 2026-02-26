@@ -1,16 +1,26 @@
 # =============================================================================
-# dbt Profiles - Local Development
-# =============================================================================
-# For production, use environment variables or a secrets manager
-# This file is for local prototyping only
+# dbt Profiles - Supabase Connection
 # =============================================================================
 
 browserbase:
-  target: dev
+  target: supabase
   outputs:
     
     # -------------------------------------------------------------------------
-    # Development - Local Postgres (Docker)
+    # Supabase (Production-like)
+    # -------------------------------------------------------------------------
+    supabase:
+      type: postgres
+      host: db.ixmbjqcguznhdwhbiuop.supabase.co
+      port: 5432
+      user: postgres
+      password: "{{ env_var('SUPABASE_DB_PASSWORD', 'KkFuD2cko6W51fnJ') }}"
+      dbname: postgres
+      schema: public
+      threads: 4
+    
+    # -------------------------------------------------------------------------
+    # Local Docker (alternative)
     # -------------------------------------------------------------------------
     dev:
       type: postgres

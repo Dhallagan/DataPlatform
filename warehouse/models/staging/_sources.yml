@@ -2,9 +2,9 @@ version: 2
 
 sources:
   - name: bronze_supabase
-    description: Raw tables replicated from Supabase (Postgres)
-    database: "{{ env_var('SNOWFLAKE_DATABASE', 'BROWSERBASE') }}"
-    schema: bronze_supabase
+    description: Raw tables from Supabase (Postgres)
+    database: postgres
+    schema: public
     
     tables:
       - name: organizations

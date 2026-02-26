@@ -9,7 +9,7 @@
 WITH invoices AS (
     SELECT
         id AS invoice_id,
-        organization_id,
+        organization_id::TEXT as organization_id,
         subscription_id,
         subtotal,
         tax,
@@ -87,7 +87,7 @@ SELECT
     ) AS collection_rate_pct,
     
     -- Metadata
-    CURRENT_TIMESTAMP() AS _loaded_at
+    CURRENT_TIMESTAMP AS _loaded_at
 
 FROM monthly_revenue mr
 LEFT JOIN organizations o ON mr.organization_id = o.organization_id

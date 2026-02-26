@@ -28,7 +28,7 @@ cohort_activity AS (
         c.cohort_week,
         c.organization_id,
         a.activity_week,
-        DATEDIFF('week', c.cohort_week, a.activity_week) AS weeks_since_signup
+        (a.activity_week - c.cohort_week) / 7 AS weeks_since_signup
     FROM org_cohorts c
     LEFT JOIN org_weekly_activity a ON c.organization_id = a.organization_id
     WHERE a.activity_week >= c.cohort_week

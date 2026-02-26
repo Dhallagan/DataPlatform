@@ -29,13 +29,13 @@ organizations AS (
     SELECT
         organization_id,
         organization_name,
-        organization_status
+        status as organization_status
     FROM {{ ref('stg_organizations') }}
 )
 
 SELECT
     -- As of date
-    CURRENT_DATE() AS as_of_date,
+    CURRENT_DATE AS as_of_date,
     
     -- Total MRR
     SUM(p.monthly_price_usd) AS total_mrr_usd,
@@ -53,12 +53,12 @@ SELECT
     
     -- ARPU (Average Revenue Per User)
     ROUND(
-        SUM(p.monthly_price_usd) / NULLIF(COUNT(DISTINCT a.organization_id), 0),
+        SUM(p.monthly_price_usd)::NUMERIC / NULLIF(COUNT(DISTINCT a.organization_id), 0),
         2
     ) AS arpu_usd,
     
     -- Metadata
-    CURRENT_TIMESTAMP() AS _calculated_at
+    CURRENT_TIMESTAMP AS _calculated_at
 
 FROM active_subscriptions a
 JOIN plans p ON a.plan_id = p.plan_id

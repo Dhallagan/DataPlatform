@@ -59,7 +59,7 @@ SELECT
     ROUND(ds.total_pages::DECIMAL / NULLIF(ds.total_sessions, 0), 2) AS avg_pages_per_session,
     
     -- Metadata
-    CURRENT_TIMESTAMP() AS _calculated_at
+    CURRENT_TIMESTAMP AS _calculated_at
 
 FROM daily_sessions ds
 LEFT JOIN daily_new_orgs no ON ds.session_date = no.signup_date

@@ -24,24 +24,24 @@ staged AS (
         stripe_subscription_id::TEXT                AS stripe_subscription_id,
         
         -- Dates
-        trial_ends_at::TIMESTAMP_NTZ                AS trial_ends_at,
-        current_period_start::TIMESTAMP_NTZ         AS current_period_start,
-        current_period_end::TIMESTAMP_NTZ           AS current_period_end,
-        canceled_at::TIMESTAMP_NTZ                  AS canceled_at,
+        trial_ends_at::TIMESTAMP                AS trial_ends_at,
+        current_period_start::TIMESTAMP         AS current_period_start,
+        current_period_end::TIMESTAMP           AS current_period_end,
+        canceled_at::TIMESTAMP                  AS canceled_at,
         
         -- Derived: is currently in trial
         CASE 
-            WHEN trial_ends_at IS NOT NULL AND trial_ends_at > CURRENT_TIMESTAMP()
+            WHEN trial_ends_at IS NOT NULL AND trial_ends_at > CURRENT_TIMESTAMP
             THEN TRUE
             ELSE FALSE
         END                                         AS is_in_trial,
         
         -- Timestamps
-        created_at::TIMESTAMP_NTZ                   AS created_at,
-        updated_at::TIMESTAMP_NTZ                   AS updated_at,
+        created_at::TIMESTAMP                   AS created_at,
+        updated_at::TIMESTAMP                   AS updated_at,
         
         -- Metadata
-        CURRENT_TIMESTAMP()                         AS _loaded_at
+        CURRENT_TIMESTAMP                         AS _loaded_at
         
     FROM source
 )

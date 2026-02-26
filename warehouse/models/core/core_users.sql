@@ -13,8 +13,8 @@ WITH users AS (
 -- Get primary organization for each user (first joined)
 org_memberships AS (
     SELECT
-        user_id,
-        organization_id,
+        user_id::TEXT as user_id,
+        organization_id::TEXT as organization_id,
         role,
         joined_at,
         ROW_NUMBER() OVER (
@@ -69,17 +69,17 @@ final AS (
         u.created_at AS user_created_at,
         
         -- Derived: Account Age
-        DATEDIFF('day', u.created_at, CURRENT_TIMESTAMP()) AS account_age_days,
+        EXTRACT(DAY FROM (CURRENT_TIMESTAMP - u.created_at))::INTEGER AS account_age_days,
         
         -- Derived: Days Since Last Login
         CASE 
             WHEN u.last_login_at IS NOT NULL 
-            THEN DATEDIFF('day', u.last_login_at, CURRENT_TIMESTAMP())
+            THEN EXTRACT(DAY FROM (CURRENT_TIMESTAMP - u.last_login_at))::INTEGER
             ELSE NULL
         END AS days_since_last_login,
         
         -- Metadata
-        CURRENT_TIMESTAMP() AS _loaded_at
+        CURRENT_TIMESTAMP AS _loaded_at
         
     FROM users u
     LEFT JOIN primary_org po ON u.user_id = po.user_id
