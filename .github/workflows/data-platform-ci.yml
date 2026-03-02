@@ -1,0 +1,75 @@
+name: Data Platform CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  contracts-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-core dbt-duckdb duckdb requests
+
+      - name: Python syntax checks
+        run: |
+          python -m py_compile pipeline/*.py
+          python -m py_compile BasedHoc/backend/main.py BasedHoc/backend/db/database.py BasedHoc/backend/agent/agent.py
+
+      - name: dbt parse
+        run: |
+          export WAREHOUSE_DUCKDB_PATH="$RUNNER_TEMP/warehouse.duckdb"
+          export ANALYTICS_DUCKDB_PATH="$RUNNER_TEMP/analytics.duckdb"
+          cd warehouse
+          dbt parse --target duckdb
+
+      - name: Schema contract checks
+        run: |
+          python pipeline/check_schema_contracts.py
+
+  integration-pipeline:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-core dbt-duckdb duckdb requests
+
+      - name: Run full pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          WAREHOUSE_DUCKDB_PATH: ${{ runner.temp }}/warehouse.duckdb
+          ANALYTICS_DUCKDB_PATH: ${{ runner.temp }}/analytics.duckdb
+        run: |
+          chmod +x ./pipeline/run_pipeline.sh
+          ./pipeline/run_pipeline.sh
+
+      - name: Growth workflow coverage checks
+        env:
+          WAREHOUSE_DUCKDB_PATH: ${{ runner.temp }}/warehouse.duckdb
+          ANALYTICS_DUCKDB_PATH: ${{ runner.temp }}/analytics.duckdb
+        run: |
+          cd warehouse
+          dbt test --target duckdb --select growth_action_log_queue_coverage growth_action_log_status_consistency growth_task_queue_threshold_enforcement signal_trial_conversion_risk_score_bounds

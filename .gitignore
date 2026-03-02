@@ -27,6 +27,7 @@ Thumbs.db
 warehouse/target/
 warehouse/dbt_packages/
 warehouse/logs/
+*.duckdb
 
 # Credentials (never commit these!)
 Pwd.md

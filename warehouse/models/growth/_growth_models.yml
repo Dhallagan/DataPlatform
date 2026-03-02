@@ -115,10 +115,42 @@ models:
     description: Auditable action log schema for downstream workflow execution.
     columns:
       - name: action_id
+        tests:
+          - not_null
+          - unique
       - name: signal_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('signal_trial_conversion_risk_daily')
+                field: signal_id
+      - name: task_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('growth_task_queue')
+                field: task_id
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('organizations')
+                field: organization_id
       - name: action_type
+        tests:
+          - not_null
       - name: executed_at
+        tests:
+          - not_null
       - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['success', 'failed']
 
   - name: gtm_funnel_daily
     description: Daily GTM funnel metrics from leads and opportunities.

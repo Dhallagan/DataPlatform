@@ -26,8 +26,8 @@ fi
 
 # Ensure local DuckDB paths resolve correctly even after `cd warehouse`.
 if [ "$DBT_TARGET" = "duckdb" ]; then
-  WAREHOUSE_DUCKDB_PATH="${WAREHOUSE_DUCKDB_PATH:-./pipeline/warehouse.duckdb}"
-  ANALYTICS_DUCKDB_PATH="${ANALYTICS_DUCKDB_PATH:-./pipeline/analytics.duckdb}"
+  WAREHOUSE_DUCKDB_PATH="${WAREHOUSE_DUCKDB_PATH:-/tmp/browserbase_warehouse.duckdb}"
+  ANALYTICS_DUCKDB_PATH="${ANALYTICS_DUCKDB_PATH:-/tmp/browserbase_analytics.duckdb}"
 
   if [[ "$WAREHOUSE_DUCKDB_PATH" != /* ]] && [[ "$WAREHOUSE_DUCKDB_PATH" != md:* ]]; then
     WAREHOUSE_DUCKDB_PATH="$PROJECT_DIR/${WAREHOUSE_DUCKDB_PATH#./}"
@@ -66,14 +66,23 @@ echo "============================================================"
 cd "$PROJECT_DIR/warehouse"
 dbt run --target "$DBT_TARGET"
 
-# Step 3: Run dbt tests
+# Step 3: Run workflow actions (Signal -> Task -> Action Log)
 echo ""
 echo "============================================================"
-echo "STEP 3: Run Data Quality Tests"
+echo "STEP 3: Execute Growth Workflow Worker"
 echo "============================================================"
+cd "$PROJECT_DIR/pipeline"
+python3 run_growth_task_worker.py
+
+# Step 4: Run dbt tests
+echo ""
+echo "============================================================"
+echo "STEP 4: Run Data Quality Tests"
+echo "============================================================"
+cd "$PROJECT_DIR/warehouse"
 dbt test --target "$DBT_TARGET" || echo "⚠️  Some tests failed (expected with sample data)"
 
-# Step 4: Show summary
+# Step 5: Show summary
 echo ""
 echo "============================================================"
 echo "✅ PIPELINE COMPLETE"
@@ -87,5 +96,5 @@ echo "Query the warehouse:"
 echo "  WAREHOUSE_DUCKDB_PATH=<path-or-md:db> python3 pipeline/query_warehouse.py"
 echo ""
 echo "Or open DuckDB CLI:"
-echo "  duckdb \${WAREHOUSE_DUCKDB_PATH:-pipeline/warehouse.duckdb}"
+echo "  duckdb \${WAREHOUSE_DUCKDB_PATH:-/tmp/browserbase_warehouse.duckdb}"
 echo ""

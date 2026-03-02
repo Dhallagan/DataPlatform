@@ -1,0 +1,326 @@
+# BrowserBase Business Ontology
+
+## 1. Purpose
+Define the canonical ontology for BrowserBase so finance, growth, product, and operations can run workflow automation on top of one shared data model.
+
+Guiding principle (Palantir-style):
+- Model real business objects first.
+- Attach events and state transitions to those objects.
+- Expose actions/workflows that operate on objects.
+- Enforce data contracts so metrics are computable and auditable.
+
+## 2. Canonical Objects
+
+### 2.1 Organization
+Represents a customer account and billing entity.
+
+Core fields:
+- `organization_id` (PK)
+- `name`
+- `organization_status` (`active`, `suspended`, `churned`)
+- `created_at`
+- `segment` (`startup`, `mid_market`, `enterprise`)
+- `owner_user_id`
+- `crm_account_id` (nullable)
+
+Derived fields:
+- `is_paying` (bool)
+- `current_mrr`
+- `lifecycle_stage` (`lead`, `trial`, `active_customer`, `at_risk`, `churned`)
+
+### 2.2 User
+Represents an end user/operator within an organization.
+
+Core fields:
+- `user_id` (PK)
+- `organization_id` (FK -> Organization)
+- `email`
+- `role`
+- `created_at`
+- `last_active_at`
+
+Derived fields:
+- `activation_state` (`invited`, `activated`, `inactive`)
+- `days_since_last_active`
+
+### 2.3 Project
+Represents a workload grouping for browser automation usage.
+
+Core fields:
+- `project_id` (PK)
+- `organization_id` (FK)
+- `name`
+- `environment` (`dev`, `staging`, `prod`)
+- `created_at`
+
+Derived fields:
+- `weekly_active_runs`
+- `error_rate_7d`
+
+### 2.4 API Key
+Represents machine identity used for API/browser session execution.
+
+Core fields:
+- `api_key_id` (PK)
+- `organization_id` (FK)
+- `project_id` (FK, nullable)
+- `created_by_user_id` (FK)
+- `created_at`
+- `revoked_at` (nullable)
+
+Derived fields:
+- `is_active`
+- `last_used_at`
+
+### 2.5 Browser Run (Session)
+Represents one executable browser session/run.
+
+Core fields:
+- `run_id` (PK; mapped from `browser_sessions.id`)
+- `organization_id` (FK)
+- `project_id` (FK)
+- `api_key_id` (FK)
+- `started_at`
+- `ended_at`
+- `run_status` (`pending`, `running`, `completed`, `failed`, `timeout`)
+- `runtime_seconds`
+- `region`
+
+Derived fields:
+- `is_success`
+- `failure_category` (`infra`, `user_script`, `network`, `quota`, `unknown`)
+- `cost_estimate_usd`
+
+### 2.6 Run Event
+Represents an event emitted during run lifecycle.
+
+Core fields:
+- `event_id` (PK)
+- `run_id` (FK -> Browser Run)
+- `organization_id` (FK)
+- `event_type`
+- `event_time`
+- `severity` (`info`, `warning`, `error`)
+- `payload_json`
+
+Derived fields:
+- `is_terminal_event`
+- `event_family` (`lifecycle`, `network`, `resource`, `auth`, `billing`)
+
+### 2.7 Plan
+Represents a pricing package.
+
+Core fields:
+- `plan_id` (PK)
+- `plan_name` (`free`, `starter`, `pro`, `enterprise`)
+- `billing_interval` (`monthly`, `annual`)
+- `included_run_quota`
+- `base_price_usd`
+
+### 2.8 Subscription
+Represents commercial agreement between organization and plan.
+
+Core fields:
+- `subscription_id` (PK)
+- `organization_id` (FK)
+- `plan_id` (FK)
+- `subscription_status` (`trialing`, `active`, `past_due`, `canceled`)
+- `trial_start_at`
+- `trial_end_at`
+- `current_period_start`
+- `current_period_end`
+- `canceled_at` (nullable)
+
+Derived fields:
+- `is_trial`
+- `days_to_renewal`
+- `is_delinquent`
+
+### 2.9 Usage Record
+Represents billable usage rollups.
+
+Core fields:
+- `usage_record_id` (PK)
+- `organization_id` (FK)
+- `period_start`
+- `period_end`
+- `runs_count`
+- `compute_minutes`
+- `overage_units`
+
+Derived fields:
+- `billable_overage_usd`
+
+### 2.10 Invoice
+Represents a financial document for collected revenue.
+
+Core fields:
+- `invoice_id` (PK)
+- `organization_id` (FK)
+- `subscription_id` (FK)
+- `invoice_status` (`draft`, `open`, `paid`, `void`, `uncollectible`)
+- `issued_at`
+- `due_at`
+- `paid_at` (nullable)
+- `amount_due_usd`
+- `amount_paid_usd`
+
+Derived fields:
+- `days_past_due`
+- `collection_state` (`current`, `grace`, `dunning`, `write_off`)
+
+## 3. Relationship Graph
+- Organization 1:N Users
+- Organization 1:N Projects
+- Organization 1:N API Keys
+- Organization 1:N Browser Runs
+- Browser Run 1:N Run Events
+- Organization 1:N Subscriptions (time-series; one active at a time)
+- Plan 1:N Subscriptions
+- Organization 1:N Usage Records
+- Organization 1:N Invoices
+- Subscription 1:N Invoices
+
+## 4. Lifecycle State Machines
+
+### 4.1 Customer Lifecycle
+- `lead` -> `trial` -> `active_customer` -> (`at_risk` | `churned`)
+
+Entry conditions:
+- `trial`: first subscription with `trialing` status.
+- `active_customer`: first paid invoice or active non-trial subscription.
+- `at_risk`: low usage + payment risk signal.
+- `churned`: subscription canceled and no active entitlement.
+
+### 4.2 Run Lifecycle
+- `pending` -> `running` -> (`completed` | `failed` | `timeout`)
+
+Automation hooks:
+- On `failed` spike: alert ops.
+- On long `pending`: detect queue pressure.
+
+### 4.3 Billing Lifecycle
+- `trialing` -> `active` -> (`past_due` -> `canceled`) or renewal
+
+Automation hooks:
+- 7 days before renewal: expansion/conversion workflow.
+- On `past_due`: dunning workflow with escalation tiers.
+
+## 5. Metrics Contracts (Semantic Layer)
+
+### 5.1 North Star + Revenue
+- `active_organizations_daily`
+- `weekly_active_organizations`
+- `mrr`
+- `nrr`
+- `arr`
+- `arpa`
+- `logo_churn_rate`
+- `revenue_churn_rate`
+
+### 5.2 Product + Reliability
+- `runs_total`
+- `run_success_rate`
+- `p95_runtime_seconds`
+- `timeout_rate`
+- `error_rate`
+
+### 5.3 Growth Funnel
+- `lead_to_trial_rate`
+- `trial_to_paid_rate`
+- `time_to_first_successful_run`
+- `activation_rate_7d`
+
+Metric policy:
+- Every metric requires owner, SQL definition, grain, refresh SLA, and test coverage.
+
+## 6. Workflow Automation Layer
+
+### 6.1 Finance Workflows
+1. Dunning Orchestration
+- Trigger: invoice enters `past_due`.
+- Actions: notify billing owner, queue customer email cadence, flag account in CRM, pause high-cost usage at risk threshold.
+
+2. Revenue Close Pack
+- Trigger: month-end close window.
+- Actions: snapshot MRR movement (new, expansion, contraction, churn), reconcile invoice totals vs usage records, publish variance report.
+
+3. Credit Risk Guardrail
+- Trigger: usage growth > 3x while invoice delinquent.
+- Actions: flag risk tier, require manual approval for additional quota, notify finance + ops.
+
+### 6.2 Growth Workflows
+1. PQL (Product Qualified Lead) Routing
+- Trigger: org crosses usage threshold + reliability threshold.
+- Actions: create sales task, enrich account profile, assign AE based on segment.
+
+2. Trial Conversion Assist
+- Trigger: trial day 5 with low activation.
+- Actions: send playbook/email, schedule CSM outreach, surface failing runs dashboard.
+
+3. Expansion Detection
+- Trigger: sustained usage over plan quota + healthy payment posture.
+- Actions: recommend plan upgrade, generate outreach list for growth.
+
+### 6.3 Ops + Product Workflows
+1. Incident Candidate Detection
+- Trigger: run failure rate > threshold by region.
+- Actions: open incident ticket, attach affected org list, estimate ARR exposure.
+
+2. Cost Anomaly Detection
+- Trigger: compute cost per successful run spikes above baseline.
+- Actions: alert infra owner, annotate release timeline, throttle problematic workloads.
+
+## 7. Data Product Boundaries
+- `core_entity_layer`: canonical objects and relationships.
+- `event_layer`: append-only operational event log.
+- `semantic_metrics_layer`: metric definitions and validated KPI views.
+- `workflow_signal_layer`: derived triggers and scores for automation.
+
+## 8. Governance + Data Contracts
+- Primary keys and foreign keys enforced in core models.
+- Accepted status values enforced via dbt tests.
+- Freshness SLA by layer:
+  - Event layer: <= 15 minutes
+  - Core entities: <= 1 hour
+  - Metrics: <= 2 hours
+- PII policy:
+  - Hash or tokenize user email for analytics consumption.
+  - Restrict raw payload access for `payload_json` fields.
+- Auditability:
+  - Every automated action logs `actor`, `reason_code`, `object_id`, `timestamp`.
+
+## 9. Initial Implementation Mapping (Current Repo)
+
+Source -> Ontology object mapping:
+- `organizations` -> Organization
+- `users` + `organization_members` -> User
+- `projects` -> Project
+- `api_keys` -> API Key
+- `browser_sessions` -> Browser Run
+- `session_events` -> Run Event
+- `plans` -> Plan
+- `subscriptions` -> Subscription
+- `usage_records` -> Usage Record
+- `invoices` -> Invoice
+
+Warehouse model mapping:
+- `silver.organizations` -> Organization canonical table
+- `silver.users` -> User canonical table
+- `silver.sessions` / `silver.fct_runs` -> Browser Run
+- `silver.fct_events` -> Run Event
+- `silver.fct_subscriptions` -> Subscription
+- `growth.growth_daily` + `growth.signal_trial_conversion_risk_daily` -> Growth workflow signals
+- `product.product_daily` + `eng.engineering_daily` + `ops.ops_daily` -> Reliability/ops signals
+- `finance.mrr` + `growth.growth_kpis` + `ops.ops_kpis` -> Finance/growth scorecards
+
+## 10. Next Build Steps
+1. Create explicit `ontology_*` schema in warehouse with object tables and relationship bridge tables.
+2. Add metric spec YAML per KPI (owner, formula, grain, SLA, tests).
+3. Add workflow signal models:
+- `signal_dunning_candidates_daily`
+- `signal_trial_conversion_risk_daily`
+- `signal_expansion_candidates_daily`
+- `signal_incident_arr_exposure_hourly`
+4. Expose object APIs for automation runners (finance/growth playbooks).
+5. Add action log table for end-to-end workflow auditability.

@@ -46,7 +46,7 @@ WAREHOUSE_PATH = os.environ.get(
     "WAREHOUSE_DUCKDB_PATH",
     os.environ.get(
         "MOTHERDUCK_PATH",
-        os.path.join(os.path.dirname(__file__), "warehouse.duckdb")
+        "/tmp/browserbase_warehouse.duckdb"
     )
 )
 MOTHERDUCK_TOKEN = os.environ.get("MOTHERDUCK_TOKEN")
