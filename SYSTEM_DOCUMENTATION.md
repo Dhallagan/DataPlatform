@@ -31,9 +31,7 @@ Two databases:
 
 | Schema | Purpose |
 |---|---|
-| `bronze_supabase` | Raw replicated tables from Supabase |
-| `bronze_ramp` | Raw replicated tables from Ramp (future) |
-| `bronze_growth` | Raw replicated tables from growth DB (future) |
+| `bronze_supabase` | Raw replicated tables from Supabase app + GTM sources |
 | `silver` | Staging views + core entities, facts, dimensions |
 
 ### Analytics DB schemas
@@ -91,6 +89,7 @@ BrowserBase/
 - Identity/account: `organizations`, `users`, `organization_members`
 - Product usage: `projects`, `api_keys`, `browser_sessions`, `session_events`
 - Billing: `plans`, `subscriptions`, `usage_records`, `invoices`
+- GTM/CRM: `gtm_accounts`, `gtm_contacts`, `gtm_leads`, `gtm_campaigns`, `gtm_lead_touches`, `gtm_opportunities`, `gtm_activities`
 
 ### Schema files
 
@@ -112,6 +111,13 @@ BrowserBase/
 - `session_events`
 - `usage_records`
 - `invoices`
+- `gtm_accounts`
+- `gtm_contacts`
+- `gtm_leads`
+- `gtm_campaigns`
+- `gtm_lead_touches`
+- `gtm_opportunities`
+- `gtm_activities`
 
 ### Silver staging models (warehouse.silver, views)
 
@@ -120,6 +126,13 @@ BrowserBase/
 - `stg_plans`
 - `stg_subscriptions`
 - `stg_sessions`
+- `stg_gtm_accounts`
+- `stg_gtm_contacts`
+- `stg_gtm_leads`
+- `stg_gtm_campaigns`
+- `stg_gtm_lead_touches`
+- `stg_gtm_opportunities`
+- `stg_gtm_activities`
 
 ### Silver core models (warehouse.silver, tables)
 
@@ -138,6 +151,12 @@ BrowserBase/
 - `growth_kpis` — 30-day growth KPI summary
 - `cohort_retention` — weekly signup cohort retention
 - `active_organizations` — orgs with sessions in last 30 days
+- `gtm_funnel_daily` — GTM lead/account/opportunity funnel by day
+- `gtm_pipeline_snapshot` — current GTM pipeline coverage and value
+- `signal_thresholds` — configured routing thresholds for growth signals
+- `signal_trial_conversion_risk_daily` — trial conversion risk scoring at org/day grain
+- `growth_task_queue` — prioritized growth tasks generated from signals
+- `action_log` — auditable action logging schema for downstream automation
 
 ### Analytics — product schema
 
@@ -346,6 +365,10 @@ Analysts connect to the `analytics` database. Primary objects:
 - `analytics.growth.cohort_retention`
 - `analytics.growth.growth_daily`
 - `analytics.growth.growth_kpis`
+- `analytics.growth.gtm_funnel_daily`
+- `analytics.growth.gtm_pipeline_snapshot`
+- `analytics.growth.signal_trial_conversion_risk_daily`
+- `analytics.growth.growth_task_queue`
 
 **Product:**
 - `analytics.product.daily_sessions`
