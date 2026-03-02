@@ -60,8 +60,8 @@ models:
               arguments:
                 values: ['trialing', 'active', 'past_due', 'canceled']
 
-  - name: stg_browser_sessions
-    description: Cleaned browser sessions from bronze.
+  - name: stg_sessions
+    description: Cleaned sessions from bronze.
     columns:
       - name: session_id
         tests:

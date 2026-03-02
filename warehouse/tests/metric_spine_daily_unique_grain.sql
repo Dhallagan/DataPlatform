@@ -3,6 +3,6 @@ SELECT
     metric_date,
     organization_id,
     COUNT(*) AS row_count
-FROM {{ ref('metric_spine_daily') }}
+FROM {{ ref('metric_spine') }}
 GROUP BY 1, 2
 HAVING COUNT(*) > 1

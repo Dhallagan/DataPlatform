@@ -10,7 +10,7 @@ SELECT
     total_errors,
     total_run_minutes,
     mrr_usd
-FROM {{ ref('metric_spine_daily') }}
+FROM {{ ref('metric_spine') }}
 WHERE runs < 0
    OR successful_runs < 0
    OR successful_runs > runs

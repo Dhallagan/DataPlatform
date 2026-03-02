@@ -6,7 +6,7 @@ SELECT
     timeout_rate_pct,
     p95_duration_seconds,
     p99_duration_seconds
-FROM {{ ref('fct_engineering_daily') }}
+FROM {{ ref('engineering_daily') }}
 WHERE success_rate_pct < 0
    OR success_rate_pct > 100
    OR failure_rate_pct < 0

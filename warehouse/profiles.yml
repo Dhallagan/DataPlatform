@@ -3,16 +3,19 @@
 # =============================================================================
 
 browserbase:
-  target: duckdb  # Default to DuckDB (Snowflake simulation)
+  target: duckdb  # Default to DuckDB
   outputs:
-    
+
     # -------------------------------------------------------------------------
-    # DuckDB - Local Snowflake Simulation
+    # DuckDB - Local Development
     # -------------------------------------------------------------------------
     duckdb:
       type: duckdb
       path: "{{ env_var('WAREHOUSE_DUCKDB_PATH', '../pipeline/warehouse.duckdb') }}"
       threads: 4
+      attach:
+        - path: "{{ env_var('ANALYTICS_DUCKDB_PATH', '../pipeline/analytics.duckdb') }}"
+          alias: analytics
 
     # -------------------------------------------------------------------------
     # MotherDuck - Cloud DuckDB
@@ -21,7 +24,10 @@ browserbase:
       type: duckdb
       path: "{{ env_var('MOTHERDUCK_PATH') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
       threads: 4
-    
+      attach:
+        - path: "{{ env_var('MOTHERDUCK_ANALYTICS_PATH', 'md:analytics') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
+          alias: analytics
+
     # -------------------------------------------------------------------------
     # Supabase (Postgres) - Direct connection
     # -------------------------------------------------------------------------
@@ -34,31 +40,3 @@ browserbase:
       dbname: "{{ env_var('SUPABASE_DB_NAME', 'postgres') }}"
       schema: "{{ env_var('SUPABASE_DB_SCHEMA', 'public') }}"
       threads: 4
-    
-    # -------------------------------------------------------------------------
-    # Snowflake (Production) - Template
-    # -------------------------------------------------------------------------
-    # snowflake:
-    #   type: snowflake
-    #   account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
-    #   user: "{{ env_var('SNOWFLAKE_USER') }}"
-    #   password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
-    #   role: TRANSFORMER
-    #   database: BROWSERBASE
-    #   warehouse: TRANSFORM_WH
-    #   schema: public
-    #   threads: 4
-    
-    # -------------------------------------------------------------------------
-    # Production - Snowflake (template)
-    # -------------------------------------------------------------------------
-    # prod:
-    #   type: snowflake
-    #   account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
-    #   user: "{{ env_var('SNOWFLAKE_USER') }}"
-    #   password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
-    #   role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
-    #   database: BROWSERBASE
-    #   warehouse: TRANSFORM_WH
-    #   schema: public
-    #   threads: 4

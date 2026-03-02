@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: core_organizations
+  - name: organizations
     description: Canonical organization entity with subscription and usage context.
     columns:
       - name: organization_id
@@ -23,7 +23,7 @@ models:
               config:
                 where: "current_plan_name is not null"
 
-  - name: core_users
+  - name: users
     description: Canonical user entity with organization context.
     columns:
       - name: user_id
@@ -34,13 +34,13 @@ models:
         tests:
           - relationships:
               arguments:
-                to: ref('core_organizations')
+                to: ref('organizations')
                 field: organization_id
               config:
                 where: "primary_organization_id is not null"
 
-  - name: core_sessions
-    description: Canonical browser session entity with derived metrics.
+  - name: sessions
+    description: Canonical session entity with derived metrics.
     columns:
       - name: session_id
         tests:
@@ -51,7 +51,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('core_organizations')
+                to: ref('organizations')
                 field: organization_id
       - name: session_status
         tests:
@@ -60,8 +60,8 @@ models:
               arguments:
                 values: ['pending', 'running', 'completed', 'failed', 'timeout']
 
-  - name: dim_org
-    description: Organization dimension exposed for semantic joins.
+  - name: dim_organizations
+    description: Organization dimension for semantic joins.
     columns:
       - name: organization_id
         tests:
@@ -71,8 +71,8 @@ models:
         tests:
           - not_null
 
-  - name: dim_user
-    description: User dimension exposed for semantic joins.
+  - name: dim_users
+    description: User dimension for semantic joins.
     columns:
       - name: user_id
         tests:
@@ -82,12 +82,12 @@ models:
         tests:
           - relationships:
               arguments:
-                to: ref('dim_org')
+                to: ref('dim_organizations')
                 field: organization_id
               config:
                 where: "organization_id is not null"
 
-  - name: fct_browser_run
+  - name: fct_runs
     description: Canonical browser run fact table.
     columns:
       - name: run_id
@@ -99,7 +99,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('dim_org')
+                to: ref('dim_organizations')
                 field: organization_id
       - name: run_status
         tests:
@@ -108,7 +108,7 @@ models:
               arguments:
                 values: ['pending', 'running', 'completed', 'failed', 'timeout']
 
-  - name: fct_event
+  - name: fct_events
     description: Canonical event fact table.
     columns:
       - name: event_id
@@ -120,10 +120,10 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('fct_browser_run')
+                to: ref('fct_runs')
                 field: run_id
 
-  - name: fct_subscription
+  - name: fct_subscriptions
     description: Canonical subscription fact table.
     columns:
       - name: subscription_id
@@ -135,7 +135,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('dim_org')
+                to: ref('dim_organizations')
                 field: organization_id
       - name: subscription_status
         tests:

@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: growth_daily
+    description: Daily growth and activation metrics.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: new_organizations
+        tests:
+          - not_null
+      - name: new_users
+        tests:
+          - not_null
+
+  - name: growth_kpis
+    description: 30-day growth KPI summary.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+          - unique
+
+  - name: cohort_retention
+    description: Weekly organization cohort retention.
+    columns:
+      - name: cohort_week
+        tests:
+          - not_null
+      - name: weeks_since_signup
+        tests:
+          - not_null
+      - name: retention_pct
+        tests:
+          - not_null
+
+  - name: active_organizations
+    description: Active organizations in the last 30 days.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - unique
+      - name: activity_tier
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['low_activity', 'medium_activity', 'high_activity']

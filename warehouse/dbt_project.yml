@@ -17,63 +17,73 @@ clean-targets:
   - "dbt_packages"
 
 # =============================================================================
-# Model Configuration (Medallion Architecture)
+# Model Configuration
+# =============================================================================
+# Two databases:
+#   warehouse (default) — bronze + silver (plumbing)
+#   analytics           — division schemas (analyst-facing)
 # =============================================================================
 models:
   browserbase_warehouse:
-    
+
     # -------------------------------------------------------------------------
-    # STAGING (Silver Layer - Cleaned & Standardized)
+    # STAGING — warehouse.silver (views)
     # -------------------------------------------------------------------------
     staging:
-      +schema: silver_stg
+      +schema: silver
       +materialized: view
       +tags: ['staging', 'silver']
-      +docs:
-        show: true
-    
+
     # -------------------------------------------------------------------------
-    # CORE (Silver Layer - Canonical Entities)
+    # CORE — warehouse.silver (tables)
     # -------------------------------------------------------------------------
     core:
-      +schema: silver_core
+      +schema: silver
       +materialized: table
-      +tags: ['core', 'silver', 'entity']
-      +docs:
-        show: true
-    
+      +tags: ['core', 'silver']
+
     # -------------------------------------------------------------------------
-    # MARTS (Gold Layer - Facts & Dimensions)
+    # ANALYTICS — domain schemas in analytics database
     # -------------------------------------------------------------------------
-    marts:
-      +schema: gold_marts
-      +materialized: table
-      +tags: ['marts', 'gold', 'fact']
-      +docs:
-        show: true
-      growth:
-        +tags: ['marts', 'gold', 'growth']
-      product:
-        +tags: ['marts', 'gold', 'product']
-      engineering:
-        +tags: ['marts', 'gold', 'engineering']
-      ops:
-        +tags: ['marts', 'gold', 'ops']
-    
-    # -------------------------------------------------------------------------
-    # METRICS (Gold Layer - Semantic Views for BI)
-    # -------------------------------------------------------------------------
-    metrics:
-      +schema: gold_metrics
+    growth:
+      +database: analytics
+      +schema: growth
       +materialized: view
-      +tags: ['metrics', 'gold', 'semantic']
-      +docs:
-        show: true
+      +tags: ['analytics', 'growth']
+
+    product:
+      +database: analytics
+      +schema: product
+      +materialized: table
+      +tags: ['analytics', 'product']
+
+    finance:
+      +database: analytics
+      +schema: finance
+      +materialized: view
+      +tags: ['analytics', 'finance']
+
+    eng:
+      +database: analytics
+      +schema: eng
+      +materialized: view
+      +tags: ['analytics', 'eng']
+
+    ops:
+      +database: analytics
+      +schema: ops
+      +materialized: view
+      +tags: ['analytics', 'ops']
+
+    core_metrics:
+      +database: analytics
+      +schema: core
+      +materialized: view
+      +tags: ['analytics', 'core']
 
 # =============================================================================
 # Variables
 # =============================================================================
 vars:
-  # Date range for filtering (useful for dev)
   start_date: '2025-08-01'
   end_date: '2026-02-28'

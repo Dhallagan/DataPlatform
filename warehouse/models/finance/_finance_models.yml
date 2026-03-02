@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: mrr
+    description: Current monthly recurring revenue snapshot.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+      - name: total_mrr_usd
+        tests:
+          - not_null
+      - name: total_paying_customers
+        tests:
+          - not_null
+
+  - name: monthly_revenue
+    description: Monthly revenue aggregates per organization.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: revenue_month
+        tests:
+          - not_null
+      - name: gross_revenue_usd
+        tests:
+          - not_null

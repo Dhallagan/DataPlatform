@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: daily_sessions
+    description: Daily session aggregates per organization.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: session_date
+        tests:
+          - not_null
+      - name: total_sessions
+        tests:
+          - not_null
+
+  - name: product_daily
+    description: Daily product engagement and feature adoption.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: total_sessions
+        tests:
+          - not_null
+      - name: success_rate_pct
+        tests:
+          - not_null
+
+  - name: product_kpis
+    description: 30-day product KPI summary.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+          - unique

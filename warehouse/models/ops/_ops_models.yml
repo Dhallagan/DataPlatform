@@ -1,0 +1,24 @@
+version: 2
+
+models:
+  - name: ops_daily
+    description: Daily operational capacity and utilization metrics.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: total_sessions
+        tests:
+          - not_null
+      - name: active_organizations
+        tests:
+          - not_null
+
+  - name: ops_kpis
+    description: 30-day ops KPI summary.
+    columns:
+      - name: as_of_date
+        tests:
+          - not_null
+          - unique
