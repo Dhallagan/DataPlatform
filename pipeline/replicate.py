@@ -76,6 +76,16 @@ TABLES = [
     {"source_table": "lead_touches", "source_schema": "gtm", "bronze_table": "gtm_lead_touches"},
     {"source_table": "opportunities", "source_schema": "gtm", "bronze_table": "gtm_opportunities"},
     {"source_table": "activities", "source_schema": "gtm", "bronze_table": "gtm_activities"},
+    # Finance schema (Ramp-like spend ops simulation)
+    {"source_table": "departments", "source_schema": "finance", "bronze_table": "finance_departments"},
+    {"source_table": "vendors", "source_schema": "finance", "bronze_table": "finance_vendors"},
+    {"source_table": "cards", "source_schema": "finance", "bronze_table": "finance_cards"},
+    {"source_table": "transactions", "source_schema": "finance", "bronze_table": "finance_transactions"},
+    {"source_table": "reimbursements", "source_schema": "finance", "bronze_table": "finance_reimbursements"},
+    {"source_table": "bills", "source_schema": "finance", "bronze_table": "finance_bills"},
+    {"source_table": "bill_payments", "source_schema": "finance", "bronze_table": "finance_bill_payments"},
+    {"source_table": "bill_adjustments", "source_schema": "finance", "bronze_table": "finance_bill_adjustments"},
+    {"source_table": "payment_reversals", "source_schema": "finance", "bronze_table": "finance_payment_reversals"},
 ]
 
 
@@ -409,6 +419,173 @@ def create_bronze_schema(conn):
             outcome VARCHAR,
             occurred_at TIMESTAMP,
             owner_user_id VARCHAR,
+            created_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_departments (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            name VARCHAR,
+            cost_center VARCHAR,
+            budget_usd DECIMAL(12,2),
+            owner_user_id VARCHAR,
+            status VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_vendors (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            vendor_name VARCHAR,
+            category VARCHAR,
+            status VARCHAR,
+            payment_terms VARCHAR,
+            risk_level VARCHAR,
+            country VARCHAR,
+            currency VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_cards (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            card_last4 VARCHAR,
+            card_brand VARCHAR,
+            card_type VARCHAR,
+            cardholder_user_id VARCHAR,
+            department_id VARCHAR,
+            vendor_id VARCHAR,
+            spend_limit_usd DECIMAL(12,2),
+            status VARCHAR,
+            issued_at TIMESTAMP,
+            frozen_at TIMESTAMP,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_transactions (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            card_id VARCHAR,
+            vendor_id VARCHAR,
+            department_id VARCHAR,
+            merchant_name VARCHAR,
+            merchant_category VARCHAR,
+            amount_usd DECIMAL(12,2),
+            currency VARCHAR,
+            transaction_type VARCHAR,
+            status VARCHAR,
+            transaction_at TIMESTAMP,
+            settled_at TIMESTAMP,
+            memo VARCHAR,
+            receipt_url VARCHAR,
+            created_by_user_id VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_reimbursements (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            submitted_by_user_id VARCHAR,
+            department_id VARCHAR,
+            vendor_id VARCHAR,
+            amount_usd DECIMAL(12,2),
+            currency VARCHAR,
+            status VARCHAR,
+            expense_date DATE,
+            submitted_at TIMESTAMP,
+            approved_at TIMESTAMP,
+            paid_at TIMESTAMP,
+            memo VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_bills (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            vendor_id VARCHAR,
+            department_id VARCHAR,
+            bill_number VARCHAR,
+            bill_date DATE,
+            due_date DATE,
+            amount_usd DECIMAL(12,2),
+            currency VARCHAR,
+            status VARCHAR,
+            approved_by_user_id VARCHAR,
+            memo VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_bill_payments (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            bill_id VARCHAR,
+            payment_method VARCHAR,
+            amount_usd DECIMAL(12,2),
+            currency VARCHAR,
+            paid_at TIMESTAMP,
+            status VARCHAR,
+            external_payment_id VARCHAR,
+            created_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_bill_adjustments (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            bill_id VARCHAR,
+            adjustment_type VARCHAR,
+            direction VARCHAR,
+            amount_usd DECIMAL(12,2),
+            currency VARCHAR,
+            reason VARCHAR,
+            adjusted_at TIMESTAMP,
+            created_by_user_id VARCHAR,
+            created_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.finance_payment_reversals (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            original_payment_id VARCHAR,
+            bill_id VARCHAR,
+            reversal_amount_usd DECIMAL(12,2),
+            currency VARCHAR,
+            status VARCHAR,
+            reversal_reason VARCHAR,
+            reversed_at TIMESTAMP,
+            created_by_user_id VARCHAR,
             created_at TIMESTAMP,
             _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )

@@ -31,7 +31,7 @@ Two databases:
 
 | Schema | Purpose |
 |---|---|
-| `bronze_supabase` | Raw replicated tables from Supabase app + GTM sources |
+| `bronze_supabase` | Raw replicated tables from Supabase app + GTM + Finance sources |
 | `silver` | Staging views + core entities, facts, dimensions |
 
 ### Analytics DB schemas
@@ -89,12 +89,16 @@ BrowserBase/
 - Identity/account: `organizations`, `users`, `organization_members`
 - Product usage: `projects`, `api_keys`, `browser_sessions`, `session_events`
 - Billing: `plans`, `subscriptions`, `usage_records`, `invoices`
-- GTM/CRM: `gtm_accounts`, `gtm_contacts`, `gtm_leads`, `gtm_campaigns`, `gtm_lead_touches`, `gtm_opportunities`, `gtm_activities`
+- GTM/CRM schema (`gtm`): `accounts`, `contacts`, `leads`, `campaigns`, `lead_touches`, `opportunities`, `activities`
+- Finance schema (`finance`, Ramp-like): `departments`, `vendors`, `cards`, `transactions`, `reimbursements`, `bills`, `bill_payments`
 
 ### Schema files
 
 - Local/Postgres bootstrap: `supabase/schema.sql`
-- Supabase migration script: `supabase/migrations/001_schema.sql`
+- Supabase migration scripts:
+  - `supabase/migrations/001_schema.sql` (core app tables)
+  - `supabase/migrations/002_gtm_schema.sql` (GTM schema)
+  - `supabase/migrations/003_finance_schema.sql` (Finance schema)
 
 ## 5) Model Inventory
 
@@ -118,6 +122,13 @@ BrowserBase/
 - `gtm_lead_touches`
 - `gtm_opportunities`
 - `gtm_activities`
+- `finance_departments`
+- `finance_vendors`
+- `finance_cards`
+- `finance_transactions`
+- `finance_reimbursements`
+- `finance_bills`
+- `finance_bill_payments`
 
 ### Silver staging models (warehouse.silver, views)
 
@@ -133,6 +144,13 @@ BrowserBase/
 - `stg_gtm_lead_touches`
 - `stg_gtm_opportunities`
 - `stg_gtm_activities`
+- `stg_finance_departments`
+- `stg_finance_vendors`
+- `stg_finance_cards`
+- `stg_finance_transactions`
+- `stg_finance_reimbursements`
+- `stg_finance_bills`
+- `stg_finance_bill_payments`
 
 ### Silver core models (warehouse.silver, tables)
 
@@ -168,6 +186,8 @@ BrowserBase/
 
 - `mrr` — current MRR snapshot
 - `monthly_revenue` — monthly revenue per org
+- `ramp_spend_monthly` — monthly spend by source (card/reimbursement/bill payment)
+- `ramp_vendor_spend_monthly` — monthly vendor-level spend rollup
 
 ### Analytics — eng schema
 
@@ -190,7 +210,7 @@ Defined in `env.example`:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
-- `WAREHOUSE_DUCKDB_PATH` (default local warehouse path)
+- `WAREHOUSE_DUCKDB_PATH` (optional local warehouse override path)
 - `ANALYTICS_DUCKDB_PATH` (default local analytics path)
 - `MOTHERDUCK_PATH` (optional, `md:` path for warehouse)
 - `MOTHERDUCK_ANALYTICS_PATH` (optional, `md:` path for analytics)
@@ -254,7 +274,16 @@ Create a new Supabase project in the dashboard and save credentials.
 
 ### Step 2: Apply schema migration
 
-Run contents of `supabase/migrations/001_schema.sql` in SQL Editor.
+Run migrations in order in SQL Editor:
+
+1. `supabase/migrations/001_schema.sql`
+2. `supabase/migrations/002_gtm_schema.sql`
+3. `supabase/migrations/003_finance_schema.sql`
+
+Then expose additional API schemas in Supabase settings:
+
+- `gtm`
+- `finance`
 
 ### Step 3: Seed data via API (recommended)
 
@@ -307,7 +336,27 @@ What it does:
 1. Loads `.env`
 2. Runs replication (`pipeline/replicate.py`)
 3. Runs dbt transforms (`dbt run`)
-4. Runs dbt tests (`dbt test`)
+4. Executes growth workflow worker (`pipeline/run_growth_task_worker.py`)
+5. Runs dbt tests (`dbt test`)
+
+### Replication cadence and behavior
+
+- Cadence: on-demand (only when you run the script/pipeline)
+- Method: full refresh by table (`DELETE` then `INSERT`)
+- Scope: reads Supabase REST API (`public`, `gtm`, `finance`) into `bronze_supabase.*`
+
+This is intentionally simple for prototype speed, but it is not historical CDC.
+
+### Playback strategy (recommended next step)
+
+For point-in-time replay and auditability, keep full-refresh bronze and add append-only history tables:
+
+- `bronze_history.<table>` with:
+  - `sync_run_id`
+  - `_synced_at`
+  - `op` (upsert/delete marker as available)
+- dbt snapshot/SCD2 models in silver for current-vs-historical state
+- replay queries filter by `sync_run_id` or timestamp window
 
 ### Manual execution
 
@@ -337,6 +386,18 @@ Warehouse query snapshot:
 python3 pipeline/query_warehouse.py
 ```
 
+Workflow execution only:
+
+```bash
+python3 pipeline/run_growth_task_worker.py
+```
+
+Freshness check:
+
+```bash
+python3 pipeline/check_freshness.py --format text
+```
+
 ## 10) Data Quality and Testing
 
 Quality coverage includes:
@@ -351,8 +412,33 @@ Typical checks:
 - accepted status values for enums
 - relationship integrity across semantic models
 - business-rule bounds for KPIs and rates
+- workflow coverage checks (`growth_task_queue` has corresponding `action_log` rows)
 
-## 11) Consumption Layer
+## 11) CI/CD and Monitoring
+
+GitHub Actions workflows:
+
+- `.github/workflows/data-platform-ci.yml`
+  - Runs on push/PR
+  - Executes Python syntax checks, `dbt parse`, schema contract checks
+  - If Supabase secrets are present, runs full pipeline + workflow coverage tests
+
+- `.github/workflows/data-platform-freshness.yml`
+  - Runs hourly and on demand
+  - Executes freshness checks and can post alerts via `ALERT_WEBHOOK_URL`
+
+Expected CI secrets:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY`
+
+Expected freshness secrets/vars:
+
+- `MOTHERDUCK_PATH` and `MOTHERDUCK_TOKEN` (or DuckDB paths)
+- `ALERT_WEBHOOK_URL` (optional)
+- `FRESHNESS_THRESHOLDS_JSON` (optional repo variable)
+
+## 12) Consumption Layer
 
 Analysts connect to the `analytics` database. Primary objects:
 
@@ -387,13 +473,18 @@ Analysts connect to the `analytics` database. Primary objects:
 - `analytics.ops.ops_daily`
 - `analytics.ops.ops_kpis`
 
-## 12) Troubleshooting
+## 13) Troubleshooting
 
 ### Missing replication credentials
 
 - Ensure `.env` exists at repo root
 - Set `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`
 - Use service role key, not anon key
+
+### 406 errors for GTM/Finance tables
+
+- Cause: schema not exposed in Supabase Data API
+- Fix: add `gtm` and/or `finance` to Supabase `Settings -> API -> Exposed schemas`
 
 ### MotherDuck connection errors
 
@@ -418,7 +509,7 @@ docker-compose up -d
 - Partial inserts can cause unique constraint conflicts
 - Recreate project or truncate tables before rerunning
 
-## 13) Production Adaptation Notes
+## 14) Production Adaptation Notes
 
 To move from prototype to production:
 

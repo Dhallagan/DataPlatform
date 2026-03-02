@@ -182,3 +182,135 @@ models:
           - accepted_values:
               arguments:
                 values: ['email', 'call', 'meeting', 'demo', 'task']
+
+  - name: stg_finance_departments
+    description: Cleaned finance department records from bronze.
+    columns:
+      - name: department_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'archived']
+
+  - name: stg_finance_vendors
+    description: Cleaned finance vendor records from bronze.
+    columns:
+      - name: vendor_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive', 'blocked']
+
+  - name: stg_finance_cards
+    description: Cleaned finance card records from bronze.
+    columns:
+      - name: card_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'frozen', 'canceled']
+
+  - name: stg_finance_transactions
+    description: Cleaned finance transaction records from bronze.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'posted', 'cleared', 'declined', 'reversed']
+
+  - name: stg_finance_reimbursements
+    description: Cleaned finance reimbursement records from bronze.
+    columns:
+      - name: reimbursement_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['submitted', 'approved', 'rejected', 'paid']
+
+  - name: stg_finance_bills
+    description: Cleaned finance bill records from bronze.
+    columns:
+      - name: bill_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['submitted', 'approved', 'scheduled', 'paid', 'void']
+
+  - name: stg_finance_bill_payments
+    description: Cleaned finance bill payment records from bronze.
+    columns:
+      - name: bill_payment_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['scheduled', 'processing', 'paid', 'failed', 'canceled']
+
+  - name: stg_finance_bill_adjustments
+    description: Cleaned finance bill adjustment records from bronze.
+    columns:
+      - name: bill_adjustment_id
+        tests:
+          - not_null
+          - unique
+      - name: adjustment_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['credit_memo', 'write_off', 'reversal', 'other']
+      - name: direction
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['decrease', 'increase']
+
+  - name: stg_finance_payment_reversals
+    description: Cleaned finance payment reversal records from bronze.
+    columns:
+      - name: payment_reversal_id
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'completed', 'failed', 'canceled']

@@ -167,3 +167,83 @@ sources:
             tests:
               - unique
               - not_null
+
+  - name: bronze_supabase_finance
+    description: Raw Finance (Ramp-like) tables from source database
+    # Schema varies by target:
+    # - supabase target: finance (direct Postgres)
+    # - duckdb/motherduck targets: bronze_supabase (replicated with finance_ prefix)
+    schema: "{{ 'finance' if target.name == 'supabase' else 'bronze_supabase' }}"
+
+    tables:
+      - name: departments
+        identifier: "{{ 'departments' if target.name == 'supabase' else 'finance_departments' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: vendors
+        identifier: "{{ 'vendors' if target.name == 'supabase' else 'finance_vendors' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: cards
+        identifier: "{{ 'cards' if target.name == 'supabase' else 'finance_cards' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: transactions
+        identifier: "{{ 'transactions' if target.name == 'supabase' else 'finance_transactions' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: reimbursements
+        identifier: "{{ 'reimbursements' if target.name == 'supabase' else 'finance_reimbursements' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: bills
+        identifier: "{{ 'bills' if target.name == 'supabase' else 'finance_bills' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: bill_payments
+        identifier: "{{ 'bill_payments' if target.name == 'supabase' else 'finance_bill_payments' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: bill_adjustments
+        identifier: "{{ 'bill_adjustments' if target.name == 'supabase' else 'finance_bill_adjustments' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: payment_reversals
+        identifier: "{{ 'payment_reversals' if target.name == 'supabase' else 'finance_payment_reversals' }}"
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null

@@ -395,6 +395,154 @@ CREATE TABLE gtm.activities (
 );
 
 -- =============================================================================
+-- FINANCE SCHEMA (Ramp-like spend management + AP)
+-- =============================================================================
+CREATE SCHEMA IF NOT EXISTS finance;
+
+CREATE TABLE finance.departments (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    name                TEXT NOT NULL,
+    cost_center         TEXT,
+    budget_usd          NUMERIC(12,2),
+    owner_user_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+    status              TEXT DEFAULT 'active', -- 'active', 'archived'
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id, name)
+);
+
+CREATE TABLE finance.vendors (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    vendor_name         TEXT NOT NULL,
+    category            TEXT,
+    status              TEXT DEFAULT 'active', -- 'active', 'inactive', 'blocked'
+    payment_terms       TEXT,                  -- 'net_15', 'net_30', 'net_45'
+    risk_level          TEXT,                  -- 'low', 'medium', 'high'
+    country             TEXT,
+    currency            TEXT DEFAULT 'USD',
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE finance.cards (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    card_last4          TEXT NOT NULL,
+    card_brand          TEXT, -- 'visa', 'mastercard', 'amex'
+    card_type           TEXT DEFAULT 'virtual', -- 'virtual', 'physical'
+    cardholder_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    department_id       UUID REFERENCES finance.departments(id) ON DELETE SET NULL,
+    vendor_id           UUID REFERENCES finance.vendors(id) ON DELETE SET NULL,
+    spend_limit_usd     NUMERIC(12,2),
+    status              TEXT DEFAULT 'active', -- 'active', 'frozen', 'canceled'
+    issued_at           TIMESTAMPTZ,
+    frozen_at           TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE finance.transactions (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    card_id             UUID REFERENCES finance.cards(id) ON DELETE SET NULL,
+    vendor_id           UUID REFERENCES finance.vendors(id) ON DELETE SET NULL,
+    department_id       UUID REFERENCES finance.departments(id) ON DELETE SET NULL,
+    merchant_name       TEXT,
+    merchant_category   TEXT,
+    amount_usd          NUMERIC(12,2) NOT NULL,
+    currency            TEXT DEFAULT 'USD',
+    transaction_type    TEXT DEFAULT 'card_purchase', -- 'card_purchase', 'cash_withdrawal', 'credit'
+    status              TEXT DEFAULT 'posted',        -- 'pending', 'posted', 'cleared', 'declined', 'reversed'
+    transaction_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    settled_at          TIMESTAMPTZ,
+    memo                TEXT,
+    receipt_url         TEXT,
+    created_by_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE finance.reimbursements (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id         UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    submitted_by_user_id    UUID REFERENCES users(id) ON DELETE SET NULL,
+    department_id           UUID REFERENCES finance.departments(id) ON DELETE SET NULL,
+    vendor_id               UUID REFERENCES finance.vendors(id) ON DELETE SET NULL,
+    amount_usd              NUMERIC(12,2) NOT NULL,
+    currency                TEXT DEFAULT 'USD',
+    status                  TEXT DEFAULT 'submitted', -- 'submitted', 'approved', 'rejected', 'paid'
+    expense_date            DATE,
+    submitted_at            TIMESTAMPTZ DEFAULT NOW(),
+    approved_at             TIMESTAMPTZ,
+    paid_at                 TIMESTAMPTZ,
+    memo                    TEXT,
+    created_at              TIMESTAMPTZ DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE finance.bills (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    vendor_id           UUID REFERENCES finance.vendors(id) ON DELETE SET NULL,
+    department_id       UUID REFERENCES finance.departments(id) ON DELETE SET NULL,
+    bill_number         TEXT,
+    bill_date           DATE,
+    due_date            DATE,
+    amount_usd          NUMERIC(12,2) NOT NULL,
+    currency            TEXT DEFAULT 'USD',
+    status              TEXT DEFAULT 'submitted', -- 'submitted', 'approved', 'scheduled', 'paid', 'void'
+    approved_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    memo                TEXT,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE finance.bill_payments (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    bill_id             UUID REFERENCES finance.bills(id) ON DELETE CASCADE,
+    payment_method      TEXT, -- 'ach', 'wire', 'card'
+    amount_usd          NUMERIC(12,2) NOT NULL,
+    currency            TEXT DEFAULT 'USD',
+    paid_at             TIMESTAMPTZ,
+    status              TEXT DEFAULT 'scheduled', -- 'scheduled', 'processing', 'paid', 'failed', 'canceled'
+    external_payment_id TEXT,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Bill-level accounting adjustments (credit memo/write-off/reversal)
+CREATE TABLE finance.bill_adjustments (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    bill_id             UUID NOT NULL REFERENCES finance.bills(id) ON DELETE CASCADE,
+    adjustment_type     TEXT NOT NULL DEFAULT 'credit_memo', -- 'credit_memo', 'write_off', 'reversal', 'other'
+    direction           TEXT NOT NULL DEFAULT 'decrease',    -- 'decrease', 'increase'
+    amount_usd          NUMERIC(12,2) NOT NULL,
+    currency            TEXT DEFAULT 'USD',
+    reason              TEXT,
+    adjusted_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Payment reversal ledger records (audit trail for reversed payments)
+CREATE TABLE finance.payment_reversals (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    original_payment_id UUID NOT NULL REFERENCES finance.bill_payments(id) ON DELETE CASCADE,
+    bill_id             UUID REFERENCES finance.bills(id) ON DELETE SET NULL,
+    reversal_amount_usd NUMERIC(12,2) NOT NULL,
+    currency            TEXT DEFAULT 'USD',
+    status              TEXT NOT NULL DEFAULT 'completed', -- 'pending', 'completed', 'failed', 'canceled'
+    reversal_reason     TEXT,
+    reversed_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================================================
 -- INDEXES (for query performance)
 -- =============================================================================
 
@@ -456,6 +604,31 @@ CREATE INDEX idx_gtm_opps_stage ON gtm.opportunities(stage);
 CREATE INDEX idx_gtm_activities_account_id ON gtm.activities(account_id);
 CREATE INDEX idx_gtm_activities_occurred_at ON gtm.activities(occurred_at);
 
+-- Finance
+CREATE INDEX idx_finance_departments_org_id ON finance.departments(organization_id);
+CREATE INDEX idx_finance_departments_status ON finance.departments(status);
+CREATE INDEX idx_finance_vendors_org_id ON finance.vendors(organization_id);
+CREATE INDEX idx_finance_vendors_status ON finance.vendors(status);
+CREATE INDEX idx_finance_cards_org_id ON finance.cards(organization_id);
+CREATE INDEX idx_finance_cards_status ON finance.cards(status);
+CREATE INDEX idx_finance_txn_org_id ON finance.transactions(organization_id);
+CREATE INDEX idx_finance_txn_status ON finance.transactions(status);
+CREATE INDEX idx_finance_txn_at ON finance.transactions(transaction_at);
+CREATE INDEX idx_finance_reim_org_id ON finance.reimbursements(organization_id);
+CREATE INDEX idx_finance_reim_status ON finance.reimbursements(status);
+CREATE INDEX idx_finance_bills_org_id ON finance.bills(organization_id);
+CREATE INDEX idx_finance_bills_status ON finance.bills(status);
+CREATE INDEX idx_finance_bill_payments_bill_id ON finance.bill_payments(bill_id);
+CREATE INDEX idx_finance_bill_payments_status ON finance.bill_payments(status);
+CREATE INDEX idx_finance_bill_adj_org_id ON finance.bill_adjustments(organization_id);
+CREATE INDEX idx_finance_bill_adj_bill_id ON finance.bill_adjustments(bill_id);
+CREATE INDEX idx_finance_bill_adj_at ON finance.bill_adjustments(adjusted_at);
+CREATE INDEX idx_finance_payment_rev_org_id ON finance.payment_reversals(organization_id);
+CREATE INDEX idx_finance_payment_rev_payment_id ON finance.payment_reversals(original_payment_id);
+CREATE INDEX idx_finance_payment_rev_bill_id ON finance.payment_reversals(bill_id);
+CREATE INDEX idx_finance_payment_rev_status ON finance.payment_reversals(status);
+CREATE INDEX idx_finance_payment_rev_at ON finance.payment_reversals(reversed_at);
+
 -- =============================================================================
 -- TRIGGERS (updated_at automation)
 -- =============================================================================
@@ -510,4 +683,28 @@ CREATE TRIGGER trg_gtm_campaigns_updated_at
 
 CREATE TRIGGER trg_gtm_opportunities_updated_at
     BEFORE UPDATE ON gtm.opportunities
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_finance_departments_updated_at
+    BEFORE UPDATE ON finance.departments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_finance_vendors_updated_at
+    BEFORE UPDATE ON finance.vendors
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_finance_cards_updated_at
+    BEFORE UPDATE ON finance.cards
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_finance_transactions_updated_at
+    BEFORE UPDATE ON finance.transactions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_finance_reimbursements_updated_at
+    BEFORE UPDATE ON finance.reimbursements
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_finance_bills_updated_at
+    BEFORE UPDATE ON finance.bills
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();

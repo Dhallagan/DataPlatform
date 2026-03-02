@@ -26,3 +26,60 @@ models:
       - name: gross_revenue_usd
         tests:
           - not_null
+
+  - name: ramp_spend_monthly
+    description: Monthly spend by organization and source from Ramp-like data.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: spend_month
+        tests:
+          - not_null
+      - name: spend_source
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['card_transaction', 'reimbursement', 'bill_payment']
+      - name: spend_usd
+        tests:
+          - not_null
+
+  - name: ramp_vendor_spend_monthly
+    description: Monthly vendor-level spend combining card transactions and bill payments.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: spend_month
+        tests:
+          - not_null
+      - name: vendor_name
+        tests:
+          - not_null
+      - name: total_spend_usd
+        tests:
+          - not_null
+
+  - name: finance_budget_vs_actual_monthly
+    description: Monthly budget vs actual spend with AP open liability by organization.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: budget_month
+        tests:
+          - not_null
+      - name: budget_allocated_usd
+        tests:
+          - not_null
+      - name: actual_spend_usd
+        tests:
+          - not_null
+      - name: bill_adjustment_net_usd
+        tests:
+          - not_null
+      - name: budget_variance_usd
+        tests:
+          - not_null
