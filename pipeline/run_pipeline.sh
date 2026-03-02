@@ -24,6 +24,22 @@ if [ "$DBT_TARGET" = "motherduck" ] && [ -n "${MOTHERDUCK_PATH:-}" ]; then
   export WAREHOUSE_DUCKDB_PATH="$MOTHERDUCK_PATH"
 fi
 
+# Ensure local DuckDB paths resolve correctly even after `cd warehouse`.
+if [ "$DBT_TARGET" = "duckdb" ]; then
+  WAREHOUSE_DUCKDB_PATH="${WAREHOUSE_DUCKDB_PATH:-./pipeline/warehouse.duckdb}"
+  ANALYTICS_DUCKDB_PATH="${ANALYTICS_DUCKDB_PATH:-./pipeline/analytics.duckdb}"
+
+  if [[ "$WAREHOUSE_DUCKDB_PATH" != /* ]] && [[ "$WAREHOUSE_DUCKDB_PATH" != md:* ]]; then
+    WAREHOUSE_DUCKDB_PATH="$PROJECT_DIR/${WAREHOUSE_DUCKDB_PATH#./}"
+  fi
+  if [[ "$ANALYTICS_DUCKDB_PATH" != /* ]] && [[ "$ANALYTICS_DUCKDB_PATH" != md:* ]]; then
+    ANALYTICS_DUCKDB_PATH="$PROJECT_DIR/${ANALYTICS_DUCKDB_PATH#./}"
+  fi
+
+  export WAREHOUSE_DUCKDB_PATH
+  export ANALYTICS_DUCKDB_PATH
+fi
+
 echo "============================================================"
 echo "🚀 BROWSERBASE DATA PIPELINE"
 echo "============================================================"

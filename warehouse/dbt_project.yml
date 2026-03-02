@@ -46,37 +46,37 @@ models:
     # ANALYTICS — domain schemas in analytics database
     # -------------------------------------------------------------------------
     growth:
-      +database: analytics
+      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
       +schema: growth
       +materialized: view
       +tags: ['analytics', 'growth']
 
     product:
-      +database: analytics
+      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
       +schema: product
       +materialized: table
       +tags: ['analytics', 'product']
 
     finance:
-      +database: analytics
+      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
       +schema: finance
       +materialized: view
       +tags: ['analytics', 'finance']
 
     eng:
-      +database: analytics
+      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
       +schema: eng
       +materialized: view
       +tags: ['analytics', 'eng']
 
     ops:
-      +database: analytics
+      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
       +schema: ops
       +materialized: view
       +tags: ['analytics', 'ops']
 
     core_metrics:
-      +database: analytics
+      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
       +schema: core
       +materialized: view
       +tags: ['analytics', 'core']

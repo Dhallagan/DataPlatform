@@ -96,3 +96,74 @@ sources:
             tests:
               - unique
               - not_null
+
+  - name: bronze_supabase_gtm
+    description: Raw GTM tables from source database
+    # Schema varies by target:
+    # - supabase target: gtm (direct Postgres)
+    # - duckdb/motherduck targets: bronze_supabase (replicated with gtm_ prefix)
+    schema: "{{ 'gtm' if target.name == 'supabase' else 'bronze_supabase' }}"
+
+    tables:
+      - name: accounts
+        identifier: "{{ 'accounts' if target.name == 'supabase' else 'gtm_accounts' }}"
+        description: GTM account records (company-level CRM entities)
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: contacts
+        identifier: "{{ 'contacts' if target.name == 'supabase' else 'gtm_contacts' }}"
+        description: GTM contact records linked to accounts
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: leads
+        identifier: "{{ 'leads' if target.name == 'supabase' else 'gtm_leads' }}"
+        description: Inbound/outbound lead records
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: campaigns
+        identifier: "{{ 'campaigns' if target.name == 'supabase' else 'gtm_campaigns' }}"
+        description: Campaign metadata and spend dimensions
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: lead_touches
+        identifier: "{{ 'lead_touches' if target.name == 'supabase' else 'gtm_lead_touches' }}"
+        description: Attribution touches linked to leads
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: opportunities
+        identifier: "{{ 'opportunities' if target.name == 'supabase' else 'gtm_opportunities' }}"
+        description: Sales pipeline opportunities
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
+
+      - name: activities
+        identifier: "{{ 'activities' if target.name == 'supabase' else 'gtm_activities' }}"
+        description: Call/email/meeting/demo activity logs
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null

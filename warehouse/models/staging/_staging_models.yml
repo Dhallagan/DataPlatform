@@ -76,3 +76,109 @@ models:
           - accepted_values:
               arguments:
                 values: ['pending', 'running', 'completed', 'failed', 'timeout']
+
+  - name: stg_gtm_accounts
+    description: Cleaned GTM account records from bronze.
+    columns:
+      - name: account_id
+        tests:
+          - not_null
+          - unique
+      - name: account_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['target', 'engaged', 'customer', 'churned']
+
+  - name: stg_gtm_contacts
+    description: Cleaned GTM contact records from bronze.
+    columns:
+      - name: contact_id
+        tests:
+          - not_null
+          - unique
+      - name: account_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_gtm_accounts')
+                field: account_id
+
+  - name: stg_gtm_leads
+    description: Cleaned GTM lead records from bronze.
+    columns:
+      - name: lead_id
+        tests:
+          - not_null
+          - unique
+      - name: lead_source
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['inbound', 'outbound', 'partner', 'referral', 'plg']
+      - name: lead_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['new', 'working', 'nurturing', 'qualified', 'unqualified', 'converted']
+
+  - name: stg_gtm_campaigns
+    description: Cleaned GTM campaign records from bronze.
+    columns:
+      - name: campaign_id
+        tests:
+          - not_null
+          - unique
+      - name: campaign_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['planned', 'active', 'paused', 'completed']
+
+  - name: stg_gtm_lead_touches
+    description: Cleaned GTM lead touch attribution records from bronze.
+    columns:
+      - name: touch_id
+        tests:
+          - not_null
+          - unique
+      - name: lead_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_gtm_leads')
+                field: lead_id
+
+  - name: stg_gtm_opportunities
+    description: Cleaned GTM opportunity records from bronze.
+    columns:
+      - name: opportunity_id
+        tests:
+          - not_null
+          - unique
+      - name: stage
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['prospecting', 'qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost']
+
+  - name: stg_gtm_activities
+    description: Cleaned GTM activity records from bronze.
+    columns:
+      - name: activity_id
+        tests:
+          - not_null
+          - unique
+      - name: activity_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['email', 'call', 'meeting', 'demo', 'task']

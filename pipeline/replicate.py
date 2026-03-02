@@ -53,27 +53,39 @@ MOTHERDUCK_TOKEN = os.environ.get("MOTHERDUCK_TOKEN")
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Tables to replicate (in dependency order)
+# - source_table: table name in Supabase
+# - source_schema: schema in Supabase REST profile
+# - bronze_table: destination table in bronze_supabase
 TABLES = [
-    "plans",
-    "organizations",
-    "users",
-    "organization_members",
-    "subscriptions",
-    "api_keys",
-    "projects",
-    "browser_sessions",
-    "session_events",
-    "usage_records",
-    "invoices",
+    {"source_table": "plans", "source_schema": "public", "bronze_table": "plans"},
+    {"source_table": "organizations", "source_schema": "public", "bronze_table": "organizations"},
+    {"source_table": "users", "source_schema": "public", "bronze_table": "users"},
+    {"source_table": "organization_members", "source_schema": "public", "bronze_table": "organization_members"},
+    {"source_table": "subscriptions", "source_schema": "public", "bronze_table": "subscriptions"},
+    {"source_table": "api_keys", "source_schema": "public", "bronze_table": "api_keys"},
+    {"source_table": "projects", "source_schema": "public", "bronze_table": "projects"},
+    {"source_table": "browser_sessions", "source_schema": "public", "bronze_table": "browser_sessions"},
+    {"source_table": "session_events", "source_schema": "public", "bronze_table": "session_events"},
+    {"source_table": "usage_records", "source_schema": "public", "bronze_table": "usage_records"},
+    {"source_table": "invoices", "source_schema": "public", "bronze_table": "invoices"},
+    # GTM schema (Salesforce-like simulation)
+    {"source_table": "accounts", "source_schema": "gtm", "bronze_table": "gtm_accounts"},
+    {"source_table": "contacts", "source_schema": "gtm", "bronze_table": "gtm_contacts"},
+    {"source_table": "leads", "source_schema": "gtm", "bronze_table": "gtm_leads"},
+    {"source_table": "campaigns", "source_schema": "gtm", "bronze_table": "gtm_campaigns"},
+    {"source_table": "lead_touches", "source_schema": "gtm", "bronze_table": "gtm_lead_touches"},
+    {"source_table": "opportunities", "source_schema": "gtm", "bronze_table": "gtm_opportunities"},
+    {"source_table": "activities", "source_schema": "gtm", "bronze_table": "gtm_activities"},
 ]
 
 
-def fetch_table(table_name: str) -> list:
+def fetch_table(table_name: str, schema_name: str = "public") -> list:
     """Fetch all rows from a Supabase table via REST API."""
     url = f"{SUPABASE_URL}/rest/v1/{table_name}?select=*"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Accept-Profile": schema_name,
     }
     
     response = requests.get(url, headers=headers, verify=False)
@@ -279,15 +291,138 @@ def create_bronze_schema(conn):
         )
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_accounts (
+            id VARCHAR PRIMARY KEY,
+            organization_id VARCHAR,
+            name VARCHAR,
+            website_domain VARCHAR,
+            industry VARCHAR,
+            employee_band VARCHAR,
+            account_tier VARCHAR,
+            account_status VARCHAR,
+            owner_user_id VARCHAR,
+            source_system VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
-def sync_table(conn, table_name: str, rows: list):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_contacts (
+            id VARCHAR PRIMARY KEY,
+            account_id VARCHAR,
+            email VARCHAR,
+            full_name VARCHAR,
+            title VARCHAR,
+            department VARCHAR,
+            seniority VARCHAR,
+            lifecycle_stage VARCHAR,
+            is_primary_contact BOOLEAN,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_leads (
+            id VARCHAR PRIMARY KEY,
+            account_id VARCHAR,
+            contact_id VARCHAR,
+            lead_source VARCHAR,
+            lead_status VARCHAR,
+            source_detail VARCHAR,
+            score INTEGER,
+            owner_user_id VARCHAR,
+            first_touch_at TIMESTAMP,
+            converted_at TIMESTAMP,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_campaigns (
+            id VARCHAR PRIMARY KEY,
+            name VARCHAR,
+            channel VARCHAR,
+            objective VARCHAR,
+            status VARCHAR,
+            budget_usd DECIMAL(12,2),
+            start_date DATE,
+            end_date DATE,
+            owner_user_id VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_lead_touches (
+            id VARCHAR PRIMARY KEY,
+            lead_id VARCHAR,
+            campaign_id VARCHAR,
+            touch_type VARCHAR,
+            touch_at TIMESTAMP,
+            channel VARCHAR,
+            metadata JSON,
+            created_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_opportunities (
+            id VARCHAR PRIMARY KEY,
+            account_id VARCHAR,
+            primary_contact_id VARCHAR,
+            originating_lead_id VARCHAR,
+            opportunity_name VARCHAR,
+            stage VARCHAR,
+            amount_usd DECIMAL(12,2),
+            forecast_category VARCHAR,
+            expected_close_date DATE,
+            closed_at TIMESTAMP,
+            is_won BOOLEAN,
+            loss_reason VARCHAR,
+            owner_user_id VARCHAR,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_activities (
+            id VARCHAR PRIMARY KEY,
+            account_id VARCHAR,
+            contact_id VARCHAR,
+            lead_id VARCHAR,
+            opportunity_id VARCHAR,
+            activity_type VARCHAR,
+            direction VARCHAR,
+            subject VARCHAR,
+            outcome VARCHAR,
+            occurred_at TIMESTAMP,
+            owner_user_id VARCHAR,
+            created_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
+def sync_table(conn, bronze_table: str, rows: list):
     """Sync rows to DuckDB bronze layer (full refresh for simplicity)."""
     if not rows:
-        print(f"  ⚠️  {table_name}: no rows")
+        print(f"  ⚠️  {bronze_table}: no rows")
         return
     
     # Clear existing data (full refresh - in production you'd do incremental)
-    conn.execute(f"DELETE FROM bronze_supabase.{table_name}")
+    conn.execute(f"DELETE FROM bronze_supabase.{bronze_table}")
     
     # Get column names from first row
     columns = list(rows[0].keys())
@@ -300,13 +435,12 @@ def sync_table(conn, table_name: str, rows: list):
     for row in rows:
         row["_synced_at"] = datetime.now().isoformat()
         
-        # Handle JSON fields
-        if "event_data" in row and row["event_data"] is not None:
-            row["event_data"] = json.dumps(row["event_data"])
-        
-        # Handle array fields
-        if "scopes" in row and row["scopes"] is not None:
-            row["scopes"] = row["scopes"]  # DuckDB handles this
+        # Convert nested objects to JSON strings (except scopes array).
+        for key, value in list(row.items()):
+            if key == "scopes":
+                continue
+            if isinstance(value, (dict, list)):
+                row[key] = json.dumps(value)
         
         values = [row.get(col) for col in columns]
         placeholders = ", ".join(["?" for _ in columns])
@@ -314,14 +448,14 @@ def sync_table(conn, table_name: str, rows: list):
         
         try:
             conn.execute(
-                f"INSERT INTO bronze_supabase.{table_name} ({col_names}) VALUES ({placeholders})",
+                f"INSERT INTO bronze_supabase.{bronze_table} ({col_names}) VALUES ({placeholders})",
                 values
             )
         except Exception as e:
             # Skip on error (some type mismatches)
             pass
     
-    print(f"  ✓ {table_name}: {len(rows)} rows")
+    print(f"  ✓ {bronze_table}: {len(rows)} rows")
 
 
 def connect_warehouse():
@@ -364,18 +498,22 @@ def main():
     
     # Sync each table
     print("\nSyncing tables from Supabase → DuckDB (Bronze)...")
-    for table in TABLES:
-        rows = fetch_table(table)
-        sync_table(conn, table, rows)
+    for table_cfg in TABLES:
+        source_table = table_cfg["source_table"]
+        source_schema = table_cfg["source_schema"]
+        bronze_table = table_cfg["bronze_table"]
+        rows = fetch_table(source_table, source_schema)
+        sync_table(conn, bronze_table, rows)
     
     # Show summary
     print("\n" + "=" * 60)
     print("📊 BRONZE LAYER SUMMARY")
     print("=" * 60)
     
-    for table in TABLES:
-        count = conn.execute(f"SELECT COUNT(*) FROM bronze_supabase.{table}").fetchone()[0]
-        print(f"  bronze_supabase.{table:20} {count:>8} rows")
+    for table_cfg in TABLES:
+        bronze_table = table_cfg["bronze_table"]
+        count = conn.execute(f"SELECT COUNT(*) FROM bronze_supabase.{bronze_table}").fetchone()[0]
+        print(f"  bronze_supabase.{bronze_table:20} {count:>8} rows")
     
     conn.close()
     print("\n✅ Replication complete!")

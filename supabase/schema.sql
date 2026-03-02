@@ -280,6 +280,121 @@ CREATE TABLE invoices (
 );
 
 -- =============================================================================
+-- GTM SCHEMA (Salesforce-like go-to-market data)
+-- =============================================================================
+CREATE SCHEMA IF NOT EXISTS gtm;
+
+-- Accounts (companies being worked by sales/growth)
+CREATE TABLE gtm.accounts (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID REFERENCES organizations(id),
+    name                TEXT NOT NULL,
+    website_domain      TEXT,
+    industry            TEXT,
+    employee_band       TEXT,   -- '1-10', '11-50', '51-200', '201-1000', '1000+'
+    account_tier        TEXT,   -- 'tier_1', 'tier_2', 'tier_3'
+    account_status      TEXT DEFAULT 'target', -- 'target', 'engaged', 'customer', 'churned'
+    owner_user_id       UUID REFERENCES users(id),
+    source_system       TEXT DEFAULT 'salesforce_sim',
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Contacts (people at target/customer accounts)
+CREATE TABLE gtm.contacts (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id          UUID NOT NULL REFERENCES gtm.accounts(id) ON DELETE CASCADE,
+    email               TEXT NOT NULL,
+    full_name           TEXT,
+    title               TEXT,
+    department          TEXT,
+    seniority           TEXT,   -- 'ic', 'manager', 'director', 'vp', 'c_level'
+    lifecycle_stage     TEXT DEFAULT 'prospect', -- 'prospect', 'lead', 'mql', 'sql', 'customer'
+    is_primary_contact  BOOLEAN DEFAULT FALSE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(account_id, email)
+);
+
+-- Leads (inbound/outbound lead records)
+CREATE TABLE gtm.leads (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id          UUID REFERENCES gtm.accounts(id) ON DELETE SET NULL,
+    contact_id          UUID REFERENCES gtm.contacts(id) ON DELETE SET NULL,
+    lead_source         TEXT NOT NULL, -- 'inbound', 'outbound', 'partner', 'referral', 'plg'
+    lead_status         TEXT DEFAULT 'new', -- 'new', 'working', 'nurturing', 'qualified', 'unqualified', 'converted'
+    source_detail       TEXT, -- campaign/content/source details
+    score               INTEGER DEFAULT 0,
+    owner_user_id       UUID REFERENCES users(id),
+    first_touch_at      TIMESTAMPTZ,
+    converted_at        TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Campaigns (marketing and outbound campaigns)
+CREATE TABLE gtm.campaigns (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name                TEXT NOT NULL,
+    channel             TEXT NOT NULL, -- 'google_ads', 'linkedin_ads', 'email', 'events', 'outbound'
+    objective           TEXT,          -- 'awareness', 'lead_gen', 'pipeline', 'expansion'
+    status              TEXT DEFAULT 'planned', -- 'planned', 'active', 'paused', 'completed'
+    budget_usd          NUMERIC(12,2),
+    start_date          DATE,
+    end_date            DATE,
+    owner_user_id       UUID REFERENCES users(id),
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Lead attribution touches
+CREATE TABLE gtm.lead_touches (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lead_id             UUID NOT NULL REFERENCES gtm.leads(id) ON DELETE CASCADE,
+    campaign_id         UUID REFERENCES gtm.campaigns(id) ON DELETE SET NULL,
+    touch_type          TEXT NOT NULL, -- 'first_touch', 'last_touch', 'influence'
+    touch_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    channel             TEXT,
+    metadata            JSONB,
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Opportunities (pipeline/deal records)
+CREATE TABLE gtm.opportunities (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id              UUID NOT NULL REFERENCES gtm.accounts(id) ON DELETE CASCADE,
+    primary_contact_id      UUID REFERENCES gtm.contacts(id) ON DELETE SET NULL,
+    originating_lead_id     UUID REFERENCES gtm.leads(id) ON DELETE SET NULL,
+    opportunity_name        TEXT NOT NULL,
+    stage                   TEXT NOT NULL DEFAULT 'prospecting', -- 'prospecting', 'qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost'
+    amount_usd              NUMERIC(12,2),
+    forecast_category       TEXT, -- 'pipeline', 'best_case', 'commit'
+    expected_close_date     DATE,
+    closed_at               TIMESTAMPTZ,
+    is_won                  BOOLEAN,
+    loss_reason             TEXT,
+    owner_user_id           UUID REFERENCES users(id),
+    created_at              TIMESTAMPTZ DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Activities (calls, emails, meetings, demos, tasks)
+CREATE TABLE gtm.activities (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id              UUID REFERENCES gtm.accounts(id) ON DELETE SET NULL,
+    contact_id              UUID REFERENCES gtm.contacts(id) ON DELETE SET NULL,
+    lead_id                 UUID REFERENCES gtm.leads(id) ON DELETE SET NULL,
+    opportunity_id          UUID REFERENCES gtm.opportunities(id) ON DELETE SET NULL,
+    activity_type           TEXT NOT NULL, -- 'email', 'call', 'meeting', 'demo', 'task'
+    direction               TEXT,          -- 'inbound', 'outbound'
+    subject                 TEXT,
+    outcome                 TEXT,
+    occurred_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    owner_user_id           UUID REFERENCES users(id),
+    created_at              TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================================================
 -- INDEXES (for query performance)
 -- =============================================================================
 
@@ -326,6 +441,21 @@ CREATE INDEX idx_usage_period ON usage_records(period_start, period_end);
 CREATE INDEX idx_invoices_org_id ON invoices(organization_id);
 CREATE INDEX idx_invoices_status ON invoices(status);
 
+-- GTM
+CREATE INDEX idx_gtm_accounts_org_id ON gtm.accounts(organization_id);
+CREATE INDEX idx_gtm_accounts_status ON gtm.accounts(account_status);
+CREATE INDEX idx_gtm_contacts_account_id ON gtm.contacts(account_id);
+CREATE INDEX idx_gtm_leads_account_id ON gtm.leads(account_id);
+CREATE INDEX idx_gtm_leads_status ON gtm.leads(lead_status);
+CREATE INDEX idx_gtm_leads_source ON gtm.leads(lead_source);
+CREATE INDEX idx_gtm_campaigns_status ON gtm.campaigns(status);
+CREATE INDEX idx_gtm_touches_lead_id ON gtm.lead_touches(lead_id);
+CREATE INDEX idx_gtm_touches_campaign_id ON gtm.lead_touches(campaign_id);
+CREATE INDEX idx_gtm_opps_account_id ON gtm.opportunities(account_id);
+CREATE INDEX idx_gtm_opps_stage ON gtm.opportunities(stage);
+CREATE INDEX idx_gtm_activities_account_id ON gtm.activities(account_id);
+CREATE INDEX idx_gtm_activities_occurred_at ON gtm.activities(occurred_at);
+
 -- =============================================================================
 -- TRIGGERS (updated_at automation)
 -- =============================================================================
@@ -360,4 +490,24 @@ CREATE TRIGGER trg_sessions_updated_at
 
 CREATE TRIGGER trg_usage_records_updated_at
     BEFORE UPDATE ON usage_records
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_gtm_accounts_updated_at
+    BEFORE UPDATE ON gtm.accounts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_gtm_contacts_updated_at
+    BEFORE UPDATE ON gtm.contacts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_gtm_leads_updated_at
+    BEFORE UPDATE ON gtm.leads
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_gtm_campaigns_updated_at
+    BEFORE UPDATE ON gtm.campaigns
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_gtm_opportunities_updated_at
+    BEFORE UPDATE ON gtm.opportunities
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();

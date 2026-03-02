@@ -24,9 +24,6 @@ browserbase:
       type: duckdb
       path: "{{ env_var('MOTHERDUCK_PATH') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
       threads: 4
-      attach:
-        - path: "{{ env_var('MOTHERDUCK_ANALYTICS_PATH', 'md:analytics') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
-          alias: analytics
 
     # -------------------------------------------------------------------------
     # Supabase (Postgres) - Direct connection
