@@ -1324,6 +1324,11 @@ export default function ExplorerPage() {
                 <Button onClick={runSqlQuery} disabled={sqlLoading}>
                   {sqlLoading ? 'Running...' : 'Run Query'}
                 </Button>
+                {sqlColumns.length > 0 ? (
+                  <Badge variant="neutral">
+                    {sqlResults.length} rows x {sqlColumns.length} cols
+                  </Badge>
+                ) : null}
                 {sqlTruncated ? <Badge variant="warning">Result truncated by payload limits</Badge> : null}
                 {sqlError ? <p className="text-xs text-error">{sqlError}</p> : null}
               </div>
