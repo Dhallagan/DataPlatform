@@ -832,6 +832,46 @@ def search_metadata_catalog(query: str, limit: int = 25) -> dict:
             }
 
 
+def get_metadata_catalog_health() -> dict:
+    """Return central catalog health summary."""
+    with get_db() as conn:
+        checks = []
+        for table_name in ("table_catalog", "column_catalog", "metric_catalog", "lineage_catalog"):
+            full_name = f"core.{table_name}"
+            try:
+                row_count, loaded_at = conn.execute(
+                    f"""
+                    SELECT COUNT(*) AS row_count, MAX(_catalog_loaded_at) AS loaded_at
+                    FROM {full_name}
+                    """
+                ).fetchone()
+                checks.append(
+                    {
+                        "object": full_name,
+                        "exists": True,
+                        "row_count": int(row_count or 0),
+                        "last_loaded_at": _isoformat(loaded_at),
+                    }
+                )
+            except Exception as exc:
+                checks.append(
+                    {
+                        "object": full_name,
+                        "exists": False,
+                        "row_count": 0,
+                        "last_loaded_at": None,
+                        "error": str(exc),
+                    }
+                )
+
+        healthy = all(item["exists"] and item["row_count"] > 0 for item in checks)
+        return {
+            "healthy": healthy,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "checks": checks,
+        }
+
+
 def append_query_audit_event(event: dict[str, Any]) -> None:
     """Append one query-audit event as JSONL for traceability."""
     QUERY_AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

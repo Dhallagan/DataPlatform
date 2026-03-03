@@ -32,6 +32,7 @@ from db.database import (
     get_metrics_catalog,
     get_lineage_for_object,
     search_metadata_catalog,
+    get_metadata_catalog_health,
 )
 
 
@@ -144,6 +145,15 @@ async def metadata_search(q: str, limit: int = 25):
     """Search tables and metrics in the central metadata catalog."""
     try:
         return {"success": True, "search": search_metadata_catalog(query=q, limit=limit)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/health")
+async def metadata_health():
+    """Get central catalog health and freshness summary."""
+    try:
+        return {"success": True, "health": get_metadata_catalog_health()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
