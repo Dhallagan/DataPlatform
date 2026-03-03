@@ -56,6 +56,28 @@ interface TablesCatalogPayload {
   };
 }
 
+interface TableDetailPayload {
+  success: boolean;
+  table?: {
+    table: string;
+    table_schema: string;
+    table_name: string;
+    column_count: number;
+    freshness_column?: string | null;
+    freshest_at?: string | null;
+    owner?: string | null;
+    certified?: boolean;
+    columns: Array<{
+      name: string;
+      type: string;
+      nullable: boolean;
+      ordinal_position: number;
+      sensitivity_class?: string;
+    }>;
+  };
+  detail?: string;
+}
+
 interface DomainSummary {
   id: DomainId;
   label: string;
@@ -269,6 +291,9 @@ export default function ExplorerPage() {
   const [sqlTruncated, setSqlTruncated] = useState(false);
   const [tableColumns, setTableColumns] = useState<Record<string, number>>({});
   const [tableMeta, setTableMeta] = useState<Record<string, { owner?: string; certified?: boolean }>>({});
+  const [selectedTableDetail, setSelectedTableDetail] = useState<TableDetailPayload['table'] | null>(null);
+  const [selectedTableLoading, setSelectedTableLoading] = useState(false);
+  const [selectedTableError, setSelectedTableError] = useState<string | null>(null);
   const [overview, setOverview] = useState<MonitoringOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -433,6 +458,29 @@ export default function ExplorerPage() {
     () => filteredObjects.find((object) => object.id === selectedObjectId) || null,
     [filteredObjects, selectedObjectId],
   );
+
+  useEffect(() => {
+    async function loadSelectedTableDetail(tableRef: string) {
+      setSelectedTableLoading(true);
+      setSelectedTableError(null);
+      try {
+        const response = await fetch(`/api/metadata/tables/${encodeURIComponent(tableRef)}`);
+        const payload = (await response.json()) as TableDetailPayload;
+        if (!response.ok || !payload.success || !payload.table) {
+          throw new Error(payload.detail || 'Failed to load table metadata');
+        }
+        setSelectedTableDetail(payload.table);
+      } catch (err) {
+        setSelectedTableDetail(null);
+        setSelectedTableError(err instanceof Error ? err.message : 'Failed to load table metadata');
+      } finally {
+        setSelectedTableLoading(false);
+      }
+    }
+
+    if (!drawerOpen || !selectedObject?.id) return;
+    loadSelectedTableDetail(selectedObject.id);
+  }, [drawerOpen, selectedObject?.id]);
 
   const lineageRows = useMemo<LineageRow[]>(() => {
     return [
@@ -989,7 +1037,52 @@ export default function ExplorerPage() {
             </div>
 
             <DocCompletenessMeter score={docScore} threshold={80} />
-            <OwnershipPill owner="Analytics Engineering" steward="Domain Team" />
+            <OwnershipPill owner={selectedTableDetail?.owner || selectedObject.owner || 'Analytics Engineering'} steward="Domain Team" />
+
+            <div className="rounded border border-border bg-surface-primary p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-content-tertiary">Catalog Metadata</p>
+              {selectedTableLoading ? (
+                <p className="mt-2 text-xs text-content-secondary">Loading table metadata...</p>
+              ) : selectedTableError ? (
+                <p className="mt-2 text-xs text-error">{selectedTableError}</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={selectedTableDetail?.certified ? 'success' : 'neutral'}>
+                      {selectedTableDetail?.certified ? 'Certified' : 'Uncertified'}
+                    </Badge>
+                    <Badge variant="neutral">
+                      {selectedTableDetail?.column_count ?? selectedObject.columnCount} columns
+                    </Badge>
+                    <Badge variant="neutral">
+                      Freshness column: {selectedTableDetail?.freshness_column || 'n/a'}
+                    </Badge>
+                  </div>
+                  <div className="max-h-56 overflow-auto rounded border border-border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-surface-secondary">
+                        <tr>
+                          <th className="border-b border-border px-2 py-1.5 text-left text-content-tertiary">Column</th>
+                          <th className="border-b border-border px-2 py-1.5 text-left text-content-tertiary">Type</th>
+                          <th className="border-b border-border px-2 py-1.5 text-left text-content-tertiary">Nullable</th>
+                          <th className="border-b border-border px-2 py-1.5 text-left text-content-tertiary">Sensitivity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedTableDetail?.columns || []).slice(0, 40).map((column) => (
+                          <tr key={column.name} className="odd:bg-surface-primary even:bg-surface-elevated">
+                            <td className="border-t border-border px-2 py-1.5 font-mono text-content-primary">{column.name}</td>
+                            <td className="border-t border-border px-2 py-1.5 text-content-secondary">{column.type}</td>
+                            <td className="border-t border-border px-2 py-1.5 text-content-secondary">{column.nullable ? 'yes' : 'no'}</td>
+                            <td className="border-t border-border px-2 py-1.5 text-content-secondary">{column.sensitivity_class || 'standard'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-content-tertiary">Draft AI Documentation</p>
