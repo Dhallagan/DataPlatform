@@ -143,6 +143,7 @@ interface ExplorerMetric {
   certified: boolean;
   source: string;
   definition: string;
+  sqlDefinitionOrModel: string;
 }
 
 interface CentralizationStep {
@@ -335,6 +336,7 @@ export default function ExplorerPage() {
   const [metrics, setMetrics] = useState<ExplorerMetric[]>([]);
   const [metricsSource, setMetricsSource] = useState<string>('unknown');
   const [metricsOnlyCertified, setMetricsOnlyCertified] = useState(false);
+  const [selectedMetricKey, setSelectedMetricKey] = useState<string>('');
   const [lineageLookupValue, setLineageLookupValue] = useState('metric_spine');
   const [lineageLookupResult, setLineageLookupResult] = useState<LineageLookupPayload['lineage'] | null>(null);
   const [lineageLookupLoading, setLineageLookupLoading] = useState(false);
@@ -386,6 +388,7 @@ export default function ExplorerPage() {
               certified: Boolean(item.certified),
               source: String(item.source || metricsPayload.catalog.source || 'unknown'),
               definition: String(item.business_definition || ''),
+              sqlDefinitionOrModel: String(item.sql_definition_or_model || item.metric_object || ''),
             });
           }
         }
@@ -512,6 +515,12 @@ export default function ExplorerPage() {
       );
     });
   }, [metrics, metricsOnlyCertified, search]);
+
+  const selectedMetric = useMemo(() => {
+    if (!filteredMetrics.length) return null;
+    if (!selectedMetricKey) return filteredMetrics[0];
+    return filteredMetrics.find((metric) => metric.metricKey === selectedMetricKey) || filteredMetrics[0];
+  }, [filteredMetrics, selectedMetricKey]);
 
   useEffect(() => {
     if (globalSearchMatches.length === 0) {
@@ -1041,11 +1050,59 @@ export default function ExplorerPage() {
                     ),
                   },
                   { key: 'source', header: 'Source' },
+                  {
+                    key: 'actions',
+                    header: '',
+                    align: 'right',
+                    render: (row: ExplorerMetric) => (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSelectedMetricKey(row.metricKey)}
+                      >
+                        Inspect
+                      </Button>
+                    ),
+                  },
                 ]}
                 rows={filteredMetrics}
                 emptyLabel="No metrics match the current search/filter."
               />
             </div>
+            {selectedMetric ? (
+              <div className="mt-3 rounded border border-border bg-surface-primary p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-content-tertiary">Metric Detail</p>
+                    <p className="text-sm font-semibold text-content-primary">{selectedMetric.metricName}</p>
+                    <p className="text-xs font-mono text-content-tertiary">{selectedMetric.metricKey}</p>
+                  </div>
+                  <Badge variant={selectedMetric.certified ? 'success' : 'neutral'}>
+                    {selectedMetric.certified ? 'Certified' : 'Uncertified'}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm text-content-secondary">
+                  {selectedMetric.definition || 'No definition available yet.'}
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
+                  <div className="rounded border border-border px-2 py-1.5">
+                    <span className="text-content-tertiary">Owner:</span> {selectedMetric.owner}
+                  </div>
+                  <div className="rounded border border-border px-2 py-1.5">
+                    <span className="text-content-tertiary">Grain:</span> {selectedMetric.grain}
+                  </div>
+                  <div className="rounded border border-border px-2 py-1.5">
+                    <span className="text-content-tertiary">SLA:</span> {selectedMetric.freshnessSla}
+                  </div>
+                  <div className="rounded border border-border px-2 py-1.5">
+                    <span className="text-content-tertiary">Source:</span> {selectedMetric.source}
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-content-tertiary">
+                  SQL/Model reference: <span className="font-mono text-content-primary">{selectedMetric.sqlDefinitionOrModel || 'n/a'}</span>
+                </p>
+              </div>
+            ) : null}
           </Card>
         ) : null}
 
