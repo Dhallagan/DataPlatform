@@ -731,6 +731,107 @@ def get_lineage_for_object(object_name: str) -> dict:
             }
 
 
+def search_metadata_catalog(query: str, limit: int = 25) -> dict:
+    """Search tables and metrics from central catalog with fallback."""
+    term = query.strip()
+    if not term:
+        return {
+            "query": query,
+            "count": 0,
+            "results": [],
+            "source": "none",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    safe_limit = max(1, min(limit, 100))
+    pattern = f"%{term.lower()}%"
+
+    with get_db() as conn:
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    'table' AS result_type,
+                    table_key AS name,
+                    owner,
+                    certified,
+                    NULL AS grain,
+                    NULL AS freshness_sla
+                FROM core.table_catalog
+                WHERE lower(table_key) LIKE ?
+                   OR lower(owner) LIKE ?
+                UNION ALL
+                SELECT
+                    'metric' AS result_type,
+                    metric_key AS name,
+                    owner,
+                    certified,
+                    grain,
+                    freshness_sla
+                FROM core.metric_catalog
+                WHERE lower(metric_key) LIKE ?
+                   OR lower(metric_name) LIKE ?
+                   OR lower(owner) LIKE ?
+                ORDER BY result_type, name
+                LIMIT ?
+                """,
+                (pattern, pattern, pattern, pattern, pattern, safe_limit),
+            ).fetchall()
+            results = [
+                {
+                    "result_type": row[0],
+                    "name": row[1],
+                    "owner": row[2],
+                    "certified": bool(row[3]),
+                    "grain": row[4],
+                    "freshness_sla": row[5],
+                }
+                for row in rows
+            ]
+            return {
+                "query": query,
+                "count": len(results),
+                "results": results,
+                "source": "core.catalog",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    table_schema,
+                    table_name
+                FROM information_schema.tables
+                WHERE table_schema IN ({_schema_filter_sql()})
+                  AND (
+                    lower(table_schema) LIKE ?
+                    OR lower(table_name) LIKE ?
+                    OR lower(concat(table_schema, '.', table_name)) LIKE ?
+                  )
+                ORDER BY table_schema, table_name
+                LIMIT ?
+                """,
+                (pattern, pattern, pattern, safe_limit),
+            ).fetchall()
+            results = [
+                {
+                    "result_type": "table",
+                    "name": f"{row[0]}.{row[1]}",
+                    "owner": None,
+                    "certified": False,
+                    "grain": None,
+                    "freshness_sla": None,
+                }
+                for row in rows
+            ]
+            return {
+                "query": query,
+                "count": len(results),
+                "results": results,
+                "source": "information_schema",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+
 def append_query_audit_event(event: dict[str, Any]) -> None:
     """Append one query-audit event as JSONL for traceability."""
     QUERY_AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)

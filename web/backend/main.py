@@ -31,6 +31,7 @@ from db.database import (
     get_table_metadata,
     get_metrics_catalog,
     get_lineage_for_object,
+    search_metadata_catalog,
 )
 
 
@@ -134,6 +135,15 @@ async def metadata_lineage(object_name: str):
     """Get lightweight lineage hints for a business object/model."""
     try:
         return {"success": True, "lineage": get_lineage_for_object(object_name)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/search")
+async def metadata_search(q: str, limit: int = 25):
+    """Search tables and metrics in the central metadata catalog."""
+    try:
+        return {"success": True, "search": search_metadata_catalog(query=q, limit=limit)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
