@@ -255,6 +255,7 @@ export default function ExplorerPage() {
   const [activeTab, setActiveTab] = useState<ExplorerTab>('overview');
   const [activeDomain, setActiveDomain] = useState<DomainId>('growth');
   const [search, setSearch] = useState('');
+  const [quickMatchIndex, setQuickMatchIndex] = useState(0);
   const [selectedObjectId, setSelectedObjectId] = useState<string>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [schemaFilter, setSchemaFilter] = useState<string>('all');
@@ -406,6 +407,23 @@ export default function ExplorerPage() {
   }, [objects, search]);
 
   useEffect(() => {
+    if (globalSearchMatches.length === 0) {
+      setQuickMatchIndex(0);
+      return;
+    }
+    if (quickMatchIndex >= globalSearchMatches.length) {
+      setQuickMatchIndex(0);
+    }
+  }, [globalSearchMatches, quickMatchIndex]);
+
+  function openObjectFromSearch(object: WarehouseObject) {
+    setActiveTab('objects');
+    setActiveDomain(object.domain);
+    setSelectedObjectId(object.id);
+    setDrawerOpen(true);
+  }
+
+  useEffect(() => {
     if (!selectedObjectId && filteredObjects.length > 0) {
       setSelectedObjectId(filteredObjects[0].id);
     }
@@ -469,6 +487,8 @@ export default function ExplorerPage() {
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||
         (target?.isContentEditable ?? false);
+      const typingInTextArea = target instanceof HTMLTextAreaElement;
+      const hasQuickMatches = search.trim().length > 0 && globalSearchMatches.length > 0;
 
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -479,12 +499,39 @@ export default function ExplorerPage() {
       if (!typingInField && event.key === '/') {
         event.preventDefault();
         focusSearchInput();
+        return;
+      }
+
+      if (typingInTextArea) return;
+
+      if (hasQuickMatches && event.key === 'ArrowDown') {
+        event.preventDefault();
+        setQuickMatchIndex((prev) => (prev + 1) % globalSearchMatches.length);
+        return;
+      }
+
+      if (hasQuickMatches && event.key === 'ArrowUp') {
+        event.preventDefault();
+        setQuickMatchIndex((prev) => (prev - 1 + globalSearchMatches.length) % globalSearchMatches.length);
+        return;
+      }
+
+      if (hasQuickMatches && event.key === 'Enter') {
+        event.preventDefault();
+        const selected = globalSearchMatches[quickMatchIndex] || globalSearchMatches[0];
+        if (selected) openObjectFromSearch(selected);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        setSearch('');
+        setQuickMatchIndex(0);
       }
     }
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [globalSearchMatches, quickMatchIndex, search]);
 
   async function runSqlQuery() {
     setSqlLoading(true);
@@ -611,21 +658,19 @@ export default function ExplorerPage() {
               <p className="text-xs text-content-tertiary">Quick matches for “{search.trim()}”</p>
               <Badge variant="neutral">{globalSearchMatches.length}</Badge>
             </div>
+            <p className="mt-1 text-[11px] text-content-tertiary">
+              Navigate with <span className="font-mono">↑/↓</span>, open with <span className="font-mono">Enter</span>, clear with <span className="font-mono">Esc</span>.
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {globalSearchMatches.length === 0 ? (
                 <p className="text-sm text-content-secondary">No objects match this search.</p>
               ) : (
-                globalSearchMatches.map((object) => (
+                globalSearchMatches.map((object, index) => (
                   <Button
                     key={object.id}
-                    variant="secondary"
+                    variant={index === quickMatchIndex ? 'primary' : 'secondary'}
                     size="sm"
-                    onClick={() => {
-                      setActiveTab('objects');
-                      setActiveDomain(object.domain);
-                      setSelectedObjectId(object.id);
-                      setDrawerOpen(true);
-                    }}
+                    onClick={() => openObjectFromSearch(object)}
                   >
                     {object.id}
                   </Button>
