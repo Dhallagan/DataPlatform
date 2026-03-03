@@ -29,6 +29,7 @@ from db.database import (
     save_schema_baseline,
     get_tables_catalog,
     get_table_metadata,
+    get_table_preview,
     get_metrics_catalog,
     get_lineage_for_object,
     search_metadata_catalog,
@@ -105,6 +106,20 @@ async def metadata_tables():
     """List discoverable warehouse tables and basic metadata."""
     try:
         return {"success": True, "catalog": get_tables_catalog()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/tables/{table_ref:path}/preview")
+async def metadata_table_preview(table_ref: str, limit: int = 20):
+    """Get preview rows for one fully qualified table (schema.table)."""
+    try:
+        preview = get_table_preview(table_ref, limit=limit)
+        if preview is None:
+            raise HTTPException(status_code=404, detail=f"Table not found or not allowed: {table_ref}")
+        return {"success": True, "preview": preview}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -79,6 +79,19 @@ interface TableDetailPayload {
   detail?: string;
 }
 
+interface TablePreviewPayload {
+  success: boolean;
+  preview?: {
+    table: string;
+    limit: number;
+    row_count: number;
+    columns: string[];
+    rows: Array<Record<string, unknown>>;
+    source: string;
+  };
+  detail?: string;
+}
+
 interface LineageLookupPayload {
   success: boolean;
   lineage?: {
@@ -393,6 +406,9 @@ export default function ExplorerPage() {
   const [selectedTableDetail, setSelectedTableDetail] = useState<TableDetailPayload['table'] | null>(null);
   const [selectedTableLoading, setSelectedTableLoading] = useState(false);
   const [selectedTableError, setSelectedTableError] = useState<string | null>(null);
+  const [selectedTablePreview, setSelectedTablePreview] = useState<TablePreviewPayload['preview'] | null>(null);
+  const [selectedTablePreviewLoading, setSelectedTablePreviewLoading] = useState(false);
+  const [selectedTablePreviewError, setSelectedTablePreviewError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<ExplorerMetric[]>([]);
   const [metricsSource, setMetricsSource] = useState<string>('unknown');
   const [metricsOnlyCertified, setMetricsOnlyCertified] = useState(false);
@@ -865,6 +881,30 @@ export default function ExplorerPage() {
 
     if (!drawerOpen || !selectedObject?.id) return;
     loadSelectedTableDetail(selectedObject.id);
+  }, [drawerOpen, selectedObject?.id]);
+
+  useEffect(() => {
+    async function loadSelectedTablePreview(tableRef: string) {
+      setSelectedTablePreviewLoading(true);
+      setSelectedTablePreviewError(null);
+      setSelectedTablePreview(null);
+      try {
+        const response = await fetch(`/api/metadata/tables/${encodeURIComponent(tableRef)}/preview?limit=20`);
+        const payload = (await response.json()) as TablePreviewPayload;
+        if (!response.ok || !payload.success || !payload.preview) {
+          throw new Error(payload.detail || 'Failed to load table preview');
+        }
+        setSelectedTablePreview(payload.preview);
+      } catch (err) {
+        setSelectedTablePreview(null);
+        setSelectedTablePreviewError(err instanceof Error ? err.message : 'Failed to load table preview');
+      } finally {
+        setSelectedTablePreviewLoading(false);
+      }
+    }
+
+    if (!drawerOpen || !selectedObject?.id) return;
+    loadSelectedTablePreview(selectedObject.id);
   }, [drawerOpen, selectedObject?.id]);
 
   const lineageRows = useMemo<LineageRow[]>(() => {
@@ -1777,6 +1817,48 @@ export default function ExplorerPage() {
                     </table>
                   </div>
                 </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-content-tertiary">Data Preview</p>
+              {selectedTablePreviewLoading ? (
+                <p className="text-xs text-content-secondary">Loading preview rows...</p>
+              ) : selectedTablePreviewError ? (
+                <p className="text-xs text-error">{selectedTablePreviewError}</p>
+              ) : selectedTablePreview && selectedTablePreview.columns.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="neutral">{selectedTablePreview.row_count} rows</Badge>
+                    <Badge variant="neutral">limit {selectedTablePreview.limit}</Badge>
+                  </div>
+                  <div className="max-h-56 overflow-auto rounded border border-border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-surface-secondary">
+                        <tr>
+                          {selectedTablePreview.columns.map((column) => (
+                            <th key={column} className="border-b border-border px-2 py-1.5 text-left text-content-tertiary">
+                              {column}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedTablePreview.rows.map((row, idx) => (
+                          <tr key={idx} className="odd:bg-surface-primary even:bg-surface-elevated">
+                            {selectedTablePreview.columns.map((column) => (
+                              <td key={`${idx}-${column}`} className="border-t border-border px-2 py-1.5 font-mono text-content-primary">
+                                {row[column] == null ? 'null' : String(row[column])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-content-secondary">No preview rows available.</p>
               )}
             </div>
 

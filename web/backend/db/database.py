@@ -517,6 +517,51 @@ def get_table_metadata(table_ref: str) -> dict | None:
             }
 
 
+def get_table_preview(table_ref: str, limit: int = 20) -> dict | None:
+    """Return a small preview sample for a fully qualified table name."""
+    if "." not in table_ref:
+        return None
+    schema, table = table_ref.split(".", 1)
+    if schema not in RELEVANT_SCHEMAS:
+        return None
+
+    safe_limit = max(1, min(limit, 100))
+    q_schema = _quoted_identifier(schema)
+    q_table = _quoted_identifier(table)
+
+    with get_db() as conn:
+        try:
+            cursor = conn.execute(f"SELECT * FROM {q_schema}.{q_table} LIMIT {safe_limit}")
+            columns = [str(desc[0]) for desc in cursor.description or []]
+            rows = cursor.fetchall()
+            preview_rows: list[dict[str, Any]] = []
+            for row in rows:
+                rendered_row: dict[str, Any] = {}
+                for idx, value in enumerate(row):
+                    col = columns[idx]
+                    if value is None or isinstance(value, (str, int, float, bool)):
+                        rendered_row[col] = value
+                    elif isinstance(value, datetime):
+                        rendered_row[col] = _isoformat(value)
+                    else:
+                        rendered_row[col] = str(value)
+                preview_rows.append(rendered_row)
+
+            return {
+                "table": table_ref,
+                "table_schema": schema,
+                "table_name": table,
+                "limit": safe_limit,
+                "row_count": len(preview_rows),
+                "columns": columns,
+                "rows": preview_rows,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "table_scan",
+            }
+        except Exception:
+            return None
+
+
 def get_metrics_catalog() -> dict:
     """Return metrics catalog, preferring certified registry when available."""
     with get_db() as conn:
