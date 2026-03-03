@@ -2,6 +2,7 @@
 
 import os
 import ssl
+from pathlib import Path
 
 # Fix broken SSL_CERT_FILE before any HTTP clients are created
 _ssl_cert = os.environ.get("SSL_CERT_FILE", "")
@@ -14,7 +15,7 @@ from contextlib import asynccontextmanager
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from models.chat import ChatRequest, ChatResponse
@@ -60,6 +61,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+LLM_TXT_PATH = REPO_ROOT / "LLM.txt"
+
 # CORS origins can be provided either as FRONTEND_ORIGINS (comma-separated)
 # or as a single FRONTEND_ORIGIN value.
 frontend_origins_raw = os.getenv("FRONTEND_ORIGINS", "").strip()
@@ -96,6 +100,16 @@ async def get_schema():
         return {"schema": schema}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/llm.txt", response_class=PlainTextResponse)
+@app.get("/LLM.txt", response_class=PlainTextResponse)
+@app.get("/llms.txt", response_class=PlainTextResponse)
+async def llm_txt():
+    """Serve machine-readable LLM instructions for external agents."""
+    if not LLM_TXT_PATH.exists():
+        raise HTTPException(status_code=404, detail="LLM.txt not found")
+    return LLM_TXT_PATH.read_text(encoding="utf-8")
 
 
 # =============================================================================
