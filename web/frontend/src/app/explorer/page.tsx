@@ -104,6 +104,22 @@ interface MetricsCatalogPayload {
   detail?: string;
 }
 
+interface MetadataSearchPayload {
+  success: boolean;
+  search?: {
+    source: string;
+    count: number;
+    results: Array<{
+      result_type: 'table' | 'metric';
+      name: string;
+      owner?: string | null;
+      certified?: boolean;
+      grain?: string | null;
+      freshness_sla?: string | null;
+    }>;
+  };
+}
+
 interface DomainSummary {
   id: DomainId;
   label: string;
@@ -144,6 +160,13 @@ interface ExplorerMetric {
   source: string;
   definition: string;
   sqlDefinitionOrModel: string;
+}
+
+interface SearchMatch {
+  resultType: 'table' | 'metric';
+  name: string;
+  owner?: string | null;
+  certified?: boolean;
 }
 
 interface CentralizationStep {
@@ -338,6 +361,8 @@ export default function ExplorerPage() {
   const [metricsSource, setMetricsSource] = useState<string>('unknown');
   const [metricsOnlyCertified, setMetricsOnlyCertified] = useState(false);
   const [selectedMetricKey, setSelectedMetricKey] = useState<string>('');
+  const [catalogSearchMatches, setCatalogSearchMatches] = useState<SearchMatch[]>([]);
+  const [catalogSearchSource, setCatalogSearchSource] = useState<string>('none');
   const [lineageLookupValue, setLineageLookupValue] = useState('metric_spine');
   const [lineageLookupResult, setLineageLookupResult] = useState<LineageLookupPayload['lineage'] | null>(null);
   const [lineageLookupLoading, setLineageLookupLoading] = useState(false);
@@ -499,6 +524,7 @@ export default function ExplorerPage() {
   const globalSearchMatches = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return [];
+    if (catalogSearchMatches.length > 0) return catalogSearchMatches;
     return objects
       .filter((object) => {
         return (
@@ -509,8 +535,14 @@ export default function ExplorerPage() {
           DOMAIN_META[object.domain].label.toLowerCase().includes(term)
         );
       })
-      .slice(0, 8);
-  }, [objects, search]);
+      .slice(0, 8)
+      .map((object) => ({
+        resultType: 'table' as const,
+        name: object.id,
+        owner: object.owner,
+        certified: object.certified,
+      }));
+  }, [objects, search, catalogSearchMatches]);
 
   const filteredMetrics = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -548,6 +580,21 @@ export default function ExplorerPage() {
     setActiveDomain(object.domain);
     setSelectedObjectId(object.id);
     setDrawerOpen(true);
+  }
+
+  function openSearchMatch(match: SearchMatch) {
+    if (match.resultType === 'metric') {
+      setActiveTab('metrics');
+      setSelectedMetricKey(match.name);
+      return;
+    }
+    const object = objects.find((item) => item.id === match.name);
+    if (object) {
+      openObjectFromSearch(object);
+    } else {
+      setSearch(match.name);
+      setActiveTab('objects');
+    }
   }
 
   useEffect(() => {
@@ -623,6 +670,44 @@ export default function ExplorerPage() {
   }, [lineageRows, search]);
 
   useEffect(() => {
+    const term = search.trim();
+    if (!term) {
+      setCatalogSearchMatches([]);
+      setCatalogSearchSource('none');
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/metadata/search?q=${encodeURIComponent(term)}&limit=8`);
+        const payload = (await response.json()) as MetadataSearchPayload;
+        if (!response.ok || !payload.success || !payload.search) return;
+        if (cancelled) return;
+        setCatalogSearchSource(payload.search.source || 'unknown');
+        setCatalogSearchMatches(
+          payload.search.results.map((row) => ({
+            resultType: row.result_type,
+            name: row.name,
+            owner: row.owner,
+            certified: row.certified,
+          })),
+        );
+      } catch {
+        if (!cancelled) {
+          setCatalogSearchMatches([]);
+          setCatalogSearchSource('client');
+        }
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [search]);
+
+  useEffect(() => {
     function focusSearchInput() {
       const input = searchContainerRef.current?.querySelector('input');
       if (input instanceof HTMLInputElement) {
@@ -669,7 +754,7 @@ export default function ExplorerPage() {
       if (hasQuickMatches && event.key === 'Enter') {
         event.preventDefault();
         const selected = globalSearchMatches[quickMatchIndex] || globalSearchMatches[0];
-        if (selected) openObjectFromSearch(selected);
+        if (selected) openSearchMatch(selected);
         return;
       }
 
@@ -681,7 +766,7 @@ export default function ExplorerPage() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [globalSearchMatches, quickMatchIndex, search]);
+  }, [globalSearchMatches, quickMatchIndex, search, objects]);
 
   async function runSqlQuery() {
     setSqlLoading(true);
@@ -826,7 +911,10 @@ export default function ExplorerPage() {
           <Card variant="default" className="p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-content-tertiary">Quick matches for “{search.trim()}”</p>
-              <Badge variant="neutral">{globalSearchMatches.length}</Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="neutral">{globalSearchMatches.length}</Badge>
+                <Badge variant="neutral">{catalogSearchSource}</Badge>
+              </div>
             </div>
             <p className="mt-1 text-[11px] text-content-tertiary">
               Navigate with <span className="font-mono">↑/↓</span>, open with <span className="font-mono">Enter</span>, clear with <span className="font-mono">Esc</span>.
@@ -837,12 +925,13 @@ export default function ExplorerPage() {
               ) : (
                 globalSearchMatches.map((object, index) => (
                   <Button
-                    key={object.id}
+                    key={`${object.resultType}:${object.name}`}
                     variant={index === quickMatchIndex ? 'primary' : 'secondary'}
                     size="sm"
-                    onClick={() => openObjectFromSearch(object)}
+                    onClick={() => openSearchMatch(object)}
                   >
-                    {object.id}
+                    {object.resultType === 'metric' ? 'metric: ' : 'table: '}
+                    {object.name}
                   </Button>
                 ))
               )}
