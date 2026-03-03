@@ -36,6 +36,24 @@ interface QueryPayload {
   error?: string;
 }
 
+interface TablesCatalogPayload {
+  success: boolean;
+  detail?: string;
+  catalog?: {
+    generated_at: string;
+    schemas: string[];
+    table_count: number;
+    tables: Array<{
+      table: string;
+      table_schema: string;
+      table_name: string;
+      column_count: number;
+      freshness_column?: string | null;
+      freshest_at?: string | null;
+    }>;
+  };
+}
+
 interface DomainSummary {
   id: DomainId;
   label: string;
@@ -253,35 +271,19 @@ export default function ExplorerPage() {
       setError(null);
 
       try {
-        const sql = `
-          SELECT table_schema, table_name, COUNT(*) AS column_count
-          FROM information_schema.columns
-          WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
-            AND table_name NOT LIKE 'duckdb_%'
-          GROUP BY 1, 2
-          ORDER BY 1, 2
-        `;
-
-        const [metaResponse, monitoring] = await Promise.all([
-          fetch('/api/reports/query', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sql }),
-          }),
+        const [tablesResponse, monitoring] = await Promise.all([
+          fetch('/api/metadata/tables'),
           getMonitoringOverview(),
         ]);
 
-        const payload = (await metaResponse.json()) as QueryPayload;
-        if (!metaResponse.ok || !payload.success || !payload.data) {
-          throw new Error(payload.error || 'Failed to load warehouse metadata');
+        const payload = (await tablesResponse.json()) as TablesCatalogPayload;
+        if (!tablesResponse.ok || !payload.success || !payload.catalog) {
+          throw new Error(payload.detail || 'Failed to load warehouse metadata');
         }
 
         const next: Record<string, number> = {};
-        for (const row of payload.data) {
-          const schema = String(row.table_schema || '');
-          const table = String(row.table_name || '');
-          const columnCount = Number(row.column_count || 0);
-          next[`${schema}.${table}`] = columnCount;
+        for (const table of payload.catalog.tables) {
+          next[table.table] = Number(table.column_count || 0);
         }
 
         setTableColumns(next);
@@ -595,7 +597,7 @@ export default function ExplorerPage() {
         ) : null}
 
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Warehouse Objects" value={`${allTables.length}`} delta="Live metadata from information_schema" trend="neutral" />
+          <StatTile label="Warehouse Objects" value={`${allTables.length}`} delta="Live metadata from API catalog" trend="neutral" />
           <StatTile label="Schemas" value={`${overview?.schema_summary.table_count ? Object.keys(overview.by_schema).length : 0}`} delta={`${overview?.schema_summary.column_count || 0} tracked columns`} trend="neutral" />
           <StatTile label="Stale Tables" value={`${staleTables}`} delta="Older than 24 hours" trend={staleTables > 0 ? 'down' : 'up'} />
           <StatTile label="Schema Drift" value={`${overview?.schema_drift.changed_tables.length || 0}`} delta={overview?.schema_drift.baseline_exists ? 'Compared to saved baseline' : 'No baseline yet'} trend={(overview?.schema_drift.changed_tables.length || 0) > 0 ? 'down' : 'up'} />
@@ -632,7 +634,7 @@ export default function ExplorerPage() {
                 citations={[
                   { id: 'overview.tables', label: 'monitoring.overview.tables' },
                   { id: 'schema.summary', label: 'monitoring.schema_summary' },
-                  { id: 'objects.info_schema', label: 'information_schema.columns query' },
+                  { id: 'objects.catalog', label: 'api.metadata.tables catalog' },
                 ]}
                 warning={docScore < 80 ? 'Documentation completeness is below target for reliable AI consumption.' : undefined}
               />

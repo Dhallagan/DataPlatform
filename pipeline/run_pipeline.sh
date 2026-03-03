@@ -61,23 +61,34 @@ python3 replicate.py
 # Step 2: Run dbt transformations
 echo ""
 echo "============================================================"
-echo "STEP 2: Run dbt Transformations (Bronze → Silver → Gold)"
+echo "STEP 2: Build Metadata Catalog Seeds from dbt Artifacts"
 echo "============================================================"
 cd "$PROJECT_DIR/warehouse"
-dbt run --target "$DBT_TARGET"
+dbt parse --target "$DBT_TARGET"
+cd "$PROJECT_DIR"
+python3 pipeline/ingest_metadata_catalog.py
+cd "$PROJECT_DIR/warehouse"
+dbt seed --target "$DBT_TARGET" --select metadata_lineage_catalog
 
-# Step 3: Run workflow actions (Signal -> Task -> Action Log)
+# Step 3: Run dbt transformations
 echo ""
 echo "============================================================"
-echo "STEP 3: Execute Growth Workflow Worker"
+echo "STEP 3: Run dbt Transformations (Bronze → Silver → Gold)"
+echo "============================================================"
+dbt run --target "$DBT_TARGET"
+
+# Step 4: Run workflow actions (Signal -> Task -> Action Log)
+echo ""
+echo "============================================================"
+echo "STEP 4: Execute Growth Workflow Worker"
 echo "============================================================"
 cd "$PROJECT_DIR/pipeline"
 python3 run_growth_task_worker.py
 
-# Step 4: Run dbt tests
+# Step 5: Run dbt tests
 echo ""
 echo "============================================================"
-echo "STEP 4: Run Data Quality Tests"
+echo "STEP 5: Run Data Quality Tests"
 echo "============================================================"
 cd "$PROJECT_DIR/warehouse"
 if [ "${ALLOW_TEST_FAILURES:-false}" = "true" ]; then

@@ -53,6 +53,13 @@ Optional reliability variables:
 # Replicate source -> bronze
 python3 pipeline/replicate.py
 
+# Generate metadata lineage seed from dbt manifest
+python3 pipeline/ingest_metadata_catalog.py
+
+# Load metadata seed
+cd warehouse
+dbt seed --target duckdb --select metadata_lineage_catalog
+
 # dbt build/test
 cd warehouse
 dbt run

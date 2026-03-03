@@ -6,9 +6,16 @@ import Toolbar from '@/components/Toolbar';
 type ViewTab = 'domain_map' | 'object_graph' | 'lineage_explorer';
 type DomainId = 'customer' | 'runtime' | 'commercial' | 'growth' | 'ops';
 
-interface QueryPayload {
+interface MetadataTablesPayload {
   success: boolean;
-  data?: Record<string, unknown>[];
+  catalog?: {
+    tables: Array<{
+      table: string;
+      table_schema: string;
+      table_name: string;
+      column_count: number;
+    }>;
+  };
   error?: string;
 }
 
@@ -169,33 +176,15 @@ export default function OntologyPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const sql = `
-          SELECT
-            table_schema,
-            table_name,
-            COUNT(*) AS column_count
-          FROM information_schema.columns
-          WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
-            AND table_name NOT LIKE 'duckdb_%'
-          GROUP BY 1, 2
-          ORDER BY 1, 2
-        `;
-        const response = await fetch('/api/reports/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql }),
-        });
-        const payload = (await response.json()) as QueryPayload;
-        if (!response.ok || !payload.success || !payload.data) {
-          throw new Error(payload.error || 'Failed to load warehouse metadata');
+        const response = await fetch('/api/metadata/tables');
+        const payload = (await response.json()) as MetadataTablesPayload;
+        if (!response.ok || !payload.success || !payload.catalog) {
+          throw new Error(payload.error || 'Failed to load metadata catalog');
         }
 
         const next: Record<string, number> = {};
-        for (const row of payload.data) {
-          const schema = String(row.table_schema || '');
-          const table = String(row.table_name || '');
-          const columnCount = Number(row.column_count || 0);
-          next[`${schema}.${table}`] = columnCount;
+        for (const row of payload.catalog.tables) {
+          next[row.table] = Number(row.column_count || 0);
         }
         setTableColumns(next);
       } catch (err) {

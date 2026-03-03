@@ -87,3 +87,10 @@ models:
 vars:
   start_date: '2025-08-01'
   end_date: '2026-02-28'
+
+seeds:
+  browserbase_warehouse:
+    +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
+    +schema: core
+    metadata:
+      +quote_columns: false

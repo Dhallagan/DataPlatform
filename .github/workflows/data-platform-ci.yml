@@ -35,6 +35,10 @@ jobs:
           cd warehouse
           dbt parse --target duckdb
 
+      - name: Build metadata lineage seed from artifacts
+        run: |
+          python pipeline/ingest_metadata_catalog.py --manifest warehouse/target/manifest.json --lineage-out warehouse/seeds/metadata/metadata_lineage_catalog.csv
+
       - name: Schema contract checks
         run: |
           python pipeline/check_schema_contracts.py

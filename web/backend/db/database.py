@@ -306,54 +306,92 @@ def _schema_filter_sql() -> str:
 def get_tables_catalog() -> dict:
     """List warehouse tables with lightweight metadata for explorer/chat discovery."""
     with get_db() as conn:
-        table_rows = conn.execute(
-            f"""
-            SELECT
-                table_schema,
-                table_name,
-                COUNT(*) AS column_count
-            FROM information_schema.columns
-            WHERE table_schema IN ({_schema_filter_sql()})
-            GROUP BY 1, 2
-            ORDER BY 1, 2
-            """
-        ).fetchall()
-
-        freshness_targets = _discover_freshness_targets(conn)
-        freshness_target_map = {(schema, table): column for schema, table, column in freshness_targets}
-
-        freshness_map: dict[tuple[str, str], str | None] = {}
-        for schema, table, freshness_column in freshness_targets:
-            q_schema = _quoted_identifier(schema)
-            q_table = _quoted_identifier(table)
-            q_freshness = _quoted_identifier(freshness_column)
-            freshest_at = conn.execute(
-                f"""
-                SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
-                FROM {q_schema}.{q_table}
+        try:
+            rows = conn.execute(
                 """
-            ).fetchone()[0]
-            freshness_map[(schema, table)] = _isoformat(freshest_at)
-
-        tables = []
-        for schema, table, column_count in table_rows:
-            tables.append(
+                SELECT
+                    table_schema,
+                    table_name,
+                    table_key,
+                    column_count,
+                    freshness_column,
+                    owner,
+                    certified,
+                    _catalog_loaded_at
+                FROM core.table_catalog
+                ORDER BY table_schema, table_name
+                """
+            ).fetchall()
+            tables = [
                 {
-                    "table": f"{schema}.{table}",
-                    "table_schema": schema,
-                    "table_name": table,
-                    "column_count": int(column_count or 0),
-                    "freshness_column": freshness_target_map.get((schema, table)),
-                    "freshest_at": freshness_map.get((schema, table)),
+                    "table": row[2],
+                    "table_schema": row[0],
+                    "table_name": row[1],
+                    "column_count": int(row[3] or 0),
+                    "freshness_column": row[4],
+                    "owner": row[5],
+                    "certified": bool(row[6]),
+                    "freshest_at": None,
                 }
-            )
+                for row in rows
+            ]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.table_catalog",
+                "schemas": RELEVANT_SCHEMAS,
+                "table_count": len(tables),
+                "tables": tables,
+            }
+        except Exception:
+            table_rows = conn.execute(
+                f"""
+                SELECT
+                    table_schema,
+                    table_name,
+                    COUNT(*) AS column_count
+                FROM information_schema.columns
+                WHERE table_schema IN ({_schema_filter_sql()})
+                GROUP BY 1, 2
+                ORDER BY 1, 2
+                """
+            ).fetchall()
 
-        return {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "schemas": RELEVANT_SCHEMAS,
-            "table_count": len(tables),
-            "tables": tables,
-        }
+            freshness_targets = _discover_freshness_targets(conn)
+            freshness_target_map = {(schema, table): column for schema, table, column in freshness_targets}
+
+            freshness_map: dict[tuple[str, str], str | None] = {}
+            for schema, table, freshness_column in freshness_targets:
+                q_schema = _quoted_identifier(schema)
+                q_table = _quoted_identifier(table)
+                q_freshness = _quoted_identifier(freshness_column)
+                freshest_at = conn.execute(
+                    f"""
+                    SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
+                    FROM {q_schema}.{q_table}
+                    """
+                ).fetchone()[0]
+                freshness_map[(schema, table)] = _isoformat(freshest_at)
+
+            tables = []
+            for schema, table, column_count in table_rows:
+                tables.append(
+                    {
+                        "table": f"{schema}.{table}",
+                        "table_schema": schema,
+                        "table_name": table,
+                        "column_count": int(column_count or 0),
+                        "freshness_column": freshness_target_map.get((schema, table)),
+                        "freshest_at": freshness_map.get((schema, table)),
+                    }
+                )
+
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "information_schema",
+                "schemas": RELEVANT_SCHEMAS,
+                "table_count": len(tables),
+                "tables": tables,
+            }
 
 
 def get_table_metadata(table_ref: str) -> dict | None:
@@ -365,68 +403,168 @@ def get_table_metadata(table_ref: str) -> dict | None:
         return None
 
     with get_db() as conn:
-        rows = conn.execute(
-            """
-            SELECT
-                column_name,
-                data_type,
-                is_nullable,
-                ordinal_position
-            FROM information_schema.columns
-            WHERE table_schema = ?
-              AND table_name = ?
-            ORDER BY ordinal_position
-            """,
-            (schema, table),
-        ).fetchall()
-
-        if not rows:
-            return None
-
-        columns = [
-            {
-                "name": column_name,
-                "type": data_type,
-                "nullable": is_nullable == "YES",
-                "ordinal_position": int(ordinal_position or 0),
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    column_name,
+                    data_type,
+                    nullable,
+                    ordinal_position,
+                    sensitivity_class
+                FROM core.column_catalog
+                WHERE table_schema = ?
+                  AND table_name = ?
+                ORDER BY ordinal_position
+                """,
+                (schema, table),
+            ).fetchall()
+            if not rows:
+                return None
+            columns = [
+                {
+                    "name": column_name,
+                    "type": data_type,
+                    "nullable": bool(nullable),
+                    "ordinal_position": int(ordinal_position or 0),
+                    "sensitivity_class": sensitivity_class,
+                }
+                for column_name, data_type, nullable, ordinal_position, sensitivity_class in rows
+            ]
+            table_row = conn.execute(
+                """
+                SELECT freshness_column, owner, certified
+                FROM core.table_catalog
+                WHERE table_schema = ? AND table_name = ?
+                LIMIT 1
+                """,
+                (schema, table),
+            ).fetchone()
+            freshness_column = table_row[0] if table_row else None
+            owner = table_row[1] if table_row else None
+            certified = bool(table_row[2]) if table_row else False
+            return {
+                "table": table_ref,
+                "table_schema": schema,
+                "table_name": table,
+                "column_count": len(columns),
+                "columns": columns,
+                "freshness_column": freshness_column,
+                "owner": owner,
+                "certified": certified,
+                "freshest_at": None,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.column_catalog",
             }
-            for column_name, data_type, is_nullable, ordinal_position in rows
-        ]
+        except Exception:
+            rows = conn.execute(
+                """
+                SELECT
+                    column_name,
+                    data_type,
+                    is_nullable,
+                    ordinal_position
+                FROM information_schema.columns
+                WHERE table_schema = ?
+                  AND table_name = ?
+                ORDER BY ordinal_position
+                """,
+                (schema, table),
+            ).fetchall()
 
-        freshness_targets = _discover_freshness_targets(conn)
-        freshness_column = None
-        freshest_at = None
-        for target_schema, target_table, target_col in freshness_targets:
-            if target_schema == schema and target_table == table:
-                freshness_column = target_col
-                q_schema = _quoted_identifier(schema)
-                q_table = _quoted_identifier(table)
-                q_freshness = _quoted_identifier(target_col)
-                freshest_at = _isoformat(
-                    conn.execute(
-                        f"""
-                        SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
-                        FROM {q_schema}.{q_table}
-                        """
-                    ).fetchone()[0]
-                )
-                break
+            if not rows:
+                return None
 
-        return {
-            "table": table_ref,
-            "table_schema": schema,
-            "table_name": table,
-            "column_count": len(columns),
-            "columns": columns,
-            "freshness_column": freshness_column,
-            "freshest_at": freshest_at,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
+            columns = [
+                {
+                    "name": column_name,
+                    "type": data_type,
+                    "nullable": is_nullable == "YES",
+                    "ordinal_position": int(ordinal_position or 0),
+                }
+                for column_name, data_type, is_nullable, ordinal_position in rows
+            ]
+
+            freshness_targets = _discover_freshness_targets(conn)
+            freshness_column = None
+            freshest_at = None
+            for target_schema, target_table, target_col in freshness_targets:
+                if target_schema == schema and target_table == table:
+                    freshness_column = target_col
+                    q_schema = _quoted_identifier(schema)
+                    q_table = _quoted_identifier(table)
+                    q_freshness = _quoted_identifier(target_col)
+                    freshest_at = _isoformat(
+                        conn.execute(
+                            f"""
+                            SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
+                            FROM {q_schema}.{q_table}
+                            """
+                        ).fetchone()[0]
+                    )
+                    break
+
+            return {
+                "table": table_ref,
+                "table_schema": schema,
+                "table_name": table,
+                "column_count": len(columns),
+                "columns": columns,
+                "freshness_column": freshness_column,
+                "freshest_at": freshest_at,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "information_schema",
+            }
 
 
 def get_metrics_catalog() -> dict:
     """Return metrics catalog, preferring certified registry when available."""
     with get_db() as conn:
+        try:
+            catalog_rows = conn.execute(
+                """
+                SELECT
+                    metric_name,
+                    metric_key,
+                    certified,
+                    business_definition,
+                    sql_definition_or_model,
+                    grain,
+                    owner,
+                    freshness_sla,
+                    quality_tests,
+                    version,
+                    effective_date
+                FROM core.metric_catalog
+                ORDER BY metric_name
+                """
+            ).fetchall()
+            metrics = [
+                {
+                    "metric_name": row[0],
+                    "metric_key": row[1],
+                    "certified": bool(row[2]),
+                    "business_definition": row[3],
+                    "sql_definition_or_model": row[4],
+                    "grain": row[5],
+                    "owner": row[6],
+                    "freshness_sla": row[7],
+                    "quality_tests": row[8],
+                    "version": row[9],
+                    "effective_date": _isoformat(row[10]),
+                    "source": "core.metric_catalog",
+                }
+                for row in catalog_rows
+            ]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "metric_count": len(metrics),
+                "source": "core.metric_catalog",
+                "metrics": metrics,
+            }
+        except Exception:
+            pass
+
         try:
             registry_rows = conn.execute(
                 """
@@ -515,39 +653,82 @@ def get_lineage_for_object(object_name: str) -> dict:
             token = token[: -len(suffix)]
 
     with get_db() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT DISTINCT table_schema, table_name
-            FROM information_schema.columns
-            WHERE table_schema IN ({_schema_filter_sql()})
-            ORDER BY 1, 2
-            """
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    child_object,
+                    parent_object
+                FROM core.lineage_catalog
+                """
+            ).fetchall()
 
-        related = []
-        for schema, table in rows:
-            if token and token in table.lower():
-                related.append(f"{schema}.{table}")
+            related = []
+            bronze = []
+            silver = []
+            analytics = []
+            for child_object, parent_object in rows:
+                left = str(child_object or "")
+                right = str(parent_object or "")
+                haystack = f"{left} {right}".lower()
+                if token and token in haystack:
+                    related.append({"child": left, "parent": right})
+                    for candidate in (left, right):
+                        if candidate.startswith("bronze_supabase."):
+                            bronze.append(candidate)
+                        elif candidate.startswith("silver."):
+                            silver.append(candidate)
+                        else:
+                            analytics.append(candidate)
 
-        bronze = [name for name in related if name.startswith("bronze_supabase.")]
-        silver = [name for name in related if name.startswith("silver.")]
-        analytics = [
-            name
-            for name in related
-            if not name.startswith("bronze_supabase.") and not name.startswith("silver.")
-        ]
+            return {
+                "object": object_name,
+                "token": token,
+                "lineage": {
+                    "bronze": sorted(list(set(bronze))),
+                    "silver": sorted(list(set(silver))),
+                    "analytics": sorted(list(set(analytics))),
+                },
+                "edges": related[:100],
+                "related_count": len(related),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.lineage_catalog",
+            }
+        except Exception:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT table_schema, table_name
+                FROM information_schema.columns
+                WHERE table_schema IN ({_schema_filter_sql()})
+                ORDER BY 1, 2
+                """
+            ).fetchall()
 
-        return {
-            "object": object_name,
-            "token": token,
-            "lineage": {
-                "bronze": bronze,
-                "silver": silver,
-                "analytics": analytics,
-            },
-            "related_count": len(related),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
+            related = []
+            for schema, table in rows:
+                if token and token in table.lower():
+                    related.append(f"{schema}.{table}")
+
+            bronze = [name for name in related if name.startswith("bronze_supabase.")]
+            silver = [name for name in related if name.startswith("silver.")]
+            analytics = [
+                name
+                for name in related
+                if not name.startswith("bronze_supabase.") and not name.startswith("silver.")
+            ]
+
+            return {
+                "object": object_name,
+                "token": token,
+                "lineage": {
+                    "bronze": bronze,
+                    "silver": silver,
+                    "analytics": analytics,
+                },
+                "related_count": len(related),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "information_schema",
+            }
 
 
 def append_query_audit_event(event: dict[str, Any]) -> None:

@@ -1,6 +1,69 @@
 version: 2
 
 models:
+  - name: table_catalog
+    description: Canonical table-level metadata catalog for explorer and agents.
+    columns:
+      - name: table_key
+        tests:
+          - not_null
+          - unique
+      - name: table_schema
+        tests:
+          - not_null
+      - name: table_name
+        tests:
+          - not_null
+      - name: column_count
+        tests:
+          - not_null
+
+  - name: column_catalog
+    description: Canonical column-level metadata catalog for explorer and agents.
+    columns:
+      - name: table_key
+        tests:
+          - not_null
+      - name: column_name
+        tests:
+          - not_null
+      - name: ordinal_position
+        tests:
+          - not_null
+
+  - name: metric_catalog
+    description: Canonical metric catalog derived from certified metric registry.
+    columns:
+      - name: metric_key
+        tests:
+          - not_null
+          - unique
+      - name: certified
+        tests:
+          - not_null
+      - name: owner
+        tests:
+          - not_null
+      - name: freshness_sla
+        tests:
+          - not_null
+
+  - name: lineage_catalog
+    description: Canonical lineage edges catalog derived from dbt manifest ingestion.
+    columns:
+      - name: child_object
+        tests:
+          - not_null
+      - name: parent_object
+        tests:
+          - not_null
+      - name: child_unique_id
+        tests:
+          - not_null
+      - name: parent_unique_id
+        tests:
+          - not_null
+
   - name: metric_registry
     description: Certified business metric definitions for self-serve and LLM workflows.
     columns:
