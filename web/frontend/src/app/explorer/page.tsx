@@ -78,6 +78,22 @@ interface TableDetailPayload {
   detail?: string;
 }
 
+interface LineageLookupPayload {
+  success: boolean;
+  lineage?: {
+    object: string;
+    token: string;
+    lineage: {
+      bronze: string[];
+      silver: string[];
+      analytics: string[];
+    };
+    related_count: number;
+    source?: string;
+  };
+  detail?: string;
+}
+
 interface DomainSummary {
   id: DomainId;
   label: string;
@@ -294,6 +310,10 @@ export default function ExplorerPage() {
   const [selectedTableDetail, setSelectedTableDetail] = useState<TableDetailPayload['table'] | null>(null);
   const [selectedTableLoading, setSelectedTableLoading] = useState(false);
   const [selectedTableError, setSelectedTableError] = useState<string | null>(null);
+  const [lineageLookupValue, setLineageLookupValue] = useState('metric_spine');
+  const [lineageLookupResult, setLineageLookupResult] = useState<LineageLookupPayload['lineage'] | null>(null);
+  const [lineageLookupLoading, setLineageLookupLoading] = useState(false);
+  const [lineageLookupError, setLineageLookupError] = useState<string | null>(null);
   const [overview, setOverview] = useState<MonitoringOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -607,6 +627,26 @@ export default function ExplorerPage() {
     }
   }
 
+  async function lookupLineage(objectName: string) {
+    const cleaned = objectName.trim();
+    if (!cleaned) return;
+    setLineageLookupLoading(true);
+    setLineageLookupError(null);
+    try {
+      const response = await fetch(`/api/metadata/lineage/${encodeURIComponent(cleaned)}`);
+      const payload = (await response.json()) as LineageLookupPayload;
+      if (!response.ok || !payload.success || !payload.lineage) {
+        throw new Error(payload.detail || 'Failed to fetch lineage');
+      }
+      setLineageLookupResult(payload.lineage);
+    } catch (err) {
+      setLineageLookupResult(null);
+      setLineageLookupError(err instanceof Error ? err.message : 'Failed to fetch lineage');
+    } finally {
+      setLineageLookupLoading(false);
+    }
+  }
+
   const docScore = useMemo(() => {
     if (!selectedObject) return 72;
     let score = 45;
@@ -910,6 +950,43 @@ export default function ExplorerPage() {
                 <p className="mt-1 text-sm text-content-secondary">Trace key business objects from source to centralized metrics.</p>
               </div>
               <LineageEdgeLegend />
+            </div>
+            <div className="mt-3 rounded border border-border bg-surface-primary p-3">
+              <p className="text-xs uppercase tracking-wide text-content-tertiary">Lineage Lookup</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Input
+                  value={lineageLookupValue}
+                  onChange={(event) => setLineageLookupValue(event.target.value)}
+                  placeholder="Enter object name (e.g. metric_spine, mrr, growth_daily)"
+                  className="min-w-[320px]"
+                />
+                <Button onClick={() => lookupLineage(lineageLookupValue)} disabled={lineageLookupLoading}>
+                  {lineageLookupLoading ? 'Looking up...' : 'Lookup'}
+                </Button>
+              </div>
+              {lineageLookupError ? <p className="mt-2 text-xs text-error">{lineageLookupError}</p> : null}
+              {lineageLookupResult ? (
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="rounded border border-border p-2">
+                    <p className="text-xs text-content-tertiary">Bronze</p>
+                    <p className="mt-1 text-xs text-content-primary font-mono">
+                      {lineageLookupResult.lineage.bronze.length > 0 ? lineageLookupResult.lineage.bronze.join(', ') : 'none'}
+                    </p>
+                  </div>
+                  <div className="rounded border border-border p-2">
+                    <p className="text-xs text-content-tertiary">Silver</p>
+                    <p className="mt-1 text-xs text-content-primary font-mono">
+                      {lineageLookupResult.lineage.silver.length > 0 ? lineageLookupResult.lineage.silver.join(', ') : 'none'}
+                    </p>
+                  </div>
+                  <div className="rounded border border-border p-2">
+                    <p className="text-xs text-content-tertiary">Analytics</p>
+                    <p className="mt-1 text-xs text-content-primary font-mono">
+                      {lineageLookupResult.lineage.analytics.length > 0 ? lineageLookupResult.lineage.analytics.join(', ') : 'none'}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="mt-3">
               <DataTable<LineageRow>
