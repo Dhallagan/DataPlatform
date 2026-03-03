@@ -18,6 +18,22 @@
 - Facts: `fct_` prefix, plural (e.g., `fct_runs`, `fct_events`)
 - Analytics models: no prefix, clean names (e.g., `mrr`, `daily_sessions`, `cohort_retention`)
 
+## Canonical Object Naming (Warehouse + Analytics)
+
+- Use: `<domain>.<layer>_<entity>[_<grain>]`
+- `layer` must be one of: `dim`, `fct`, `agg`, `kpi`, `cfg`, `bridge`, `snap`.
+- `entity` must be a clear business noun (e.g., `browser_sessions`, `organizations`, `revenue`).
+- `grain` is required for time series models and must be explicit (`daily`, `weekly`, `monthly`).
+- Do not repeat the domain token in the table name (avoid names like `growth_growth_daily`).
+- Do not use vague entity names like `runs` if a precise name exists; prefer `browser_sessions` or `browser_runs`.
+
+### Required Renames (Current Examples)
+
+- `growth.growth_daily` -> `growth.agg_growth_daily` (or a more specific entity form like `growth.agg_pipeline_daily`)
+- `growth.growth_kpis` -> `growth.kpi_growth_daily`
+- `growth.signal_thresholds` -> `growth.cfg_signal_thresholds`
+- `silver.fct_runs` -> `silver.fct_browser_sessions` (or `silver.fct_browser_runs`, pick one canonical term and use consistently)
+
 ## dbt Testing
 
 - Every model must have a corresponding YAML file with at minimum primary key `not_null` + `unique` tests.
