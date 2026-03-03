@@ -24,7 +24,7 @@ import {
 } from '@/components/ui';
 import { getMonitoringOverview, MonitoringOverview } from '@/lib/api';
 
-type ExplorerTab = 'overview' | 'objects' | 'lineage' | 'centralization' | 'sql';
+type ExplorerTab = 'overview' | 'objects' | 'metrics' | 'lineage' | 'centralization' | 'sql';
 type DomainId = 'customer' | 'runtime' | 'commercial' | 'growth' | 'ops';
 
 interface QueryPayload {
@@ -94,6 +94,16 @@ interface LineageLookupPayload {
   detail?: string;
 }
 
+interface MetricsCatalogPayload {
+  success: boolean;
+  catalog?: {
+    source?: string;
+    metric_count: number;
+    metrics: Array<Record<string, unknown>>;
+  };
+  detail?: string;
+}
+
 interface DomainSummary {
   id: DomainId;
   label: string;
@@ -122,6 +132,17 @@ interface LineageRow {
   analytics: string;
   metric: string;
   signal: string;
+}
+
+interface ExplorerMetric {
+  metricName: string;
+  metricKey: string;
+  owner: string;
+  grain: string;
+  freshnessSla: string;
+  certified: boolean;
+  source: string;
+  definition: string;
 }
 
 interface CentralizationStep {
@@ -161,6 +182,7 @@ const DOMAIN_META: Record<DomainId, { label: string; purpose: string }> = {
 const TABS = [
   { key: 'overview', label: 'Platform Overview' },
   { key: 'objects', label: 'Object Explorer' },
+  { key: 'metrics', label: 'Metrics Catalog' },
   { key: 'lineage', label: 'Lineage Map' },
   { key: 'centralization', label: 'Centralization Flow' },
   { key: 'sql', label: 'SQL Explorer' },
@@ -310,6 +332,9 @@ export default function ExplorerPage() {
   const [selectedTableDetail, setSelectedTableDetail] = useState<TableDetailPayload['table'] | null>(null);
   const [selectedTableLoading, setSelectedTableLoading] = useState(false);
   const [selectedTableError, setSelectedTableError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<ExplorerMetric[]>([]);
+  const [metricsSource, setMetricsSource] = useState<string>('unknown');
+  const [metricsOnlyCertified, setMetricsOnlyCertified] = useState(false);
   const [lineageLookupValue, setLineageLookupValue] = useState('metric_spine');
   const [lineageLookupResult, setLineageLookupResult] = useState<LineageLookupPayload['lineage'] | null>(null);
   const [lineageLookupLoading, setLineageLookupLoading] = useState(false);
@@ -329,11 +354,13 @@ export default function ExplorerPage() {
           fetch('/api/metadata/tables'),
           getMonitoringOverview(),
         ]);
+        const metricsResponse = await fetch('/api/metadata/metrics');
 
         const payload = (await tablesResponse.json()) as TablesCatalogPayload;
         if (!tablesResponse.ok || !payload.success || !payload.catalog) {
           throw new Error(payload.detail || 'Failed to load warehouse metadata');
         }
+        const metricsPayload = (await metricsResponse.json()) as MetricsCatalogPayload;
 
         const next: Record<string, number> = {};
         const nextMeta: Record<string, { owner?: string; certified?: boolean }> = {};
@@ -345,8 +372,28 @@ export default function ExplorerPage() {
           };
         }
 
+        const normalizedMetrics: ExplorerMetric[] = [];
+        if (metricsResponse.ok && metricsPayload.success && metricsPayload.catalog) {
+          for (const item of metricsPayload.catalog.metrics) {
+            const metricName = String(item.metric_name || item.metric_object || '');
+            if (!metricName) continue;
+            normalizedMetrics.push({
+              metricName,
+              metricKey: String(item.metric_key || metricName),
+              owner: String(item.owner || 'Unknown'),
+              grain: String(item.grain || 'n/a'),
+              freshnessSla: String(item.freshness_sla || 'n/a'),
+              certified: Boolean(item.certified),
+              source: String(item.source || metricsPayload.catalog.source || 'unknown'),
+              definition: String(item.business_definition || ''),
+            });
+          }
+        }
+
         setTableColumns(next);
         setTableMeta(nextMeta);
+        setMetrics(normalizedMetrics);
+        setMetricsSource(metricsPayload.catalog?.source || 'unknown');
         setOverview(monitoring);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load explorer data');
@@ -450,6 +497,21 @@ export default function ExplorerPage() {
       })
       .slice(0, 8);
   }, [objects, search]);
+
+  const filteredMetrics = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return metrics.filter((metric) => {
+      if (metricsOnlyCertified && !metric.certified) return false;
+      if (!term) return true;
+      return (
+        metric.metricName.toLowerCase().includes(term) ||
+        metric.metricKey.toLowerCase().includes(term) ||
+        metric.owner.toLowerCase().includes(term) ||
+        metric.grain.toLowerCase().includes(term) ||
+        metric.definition.toLowerCase().includes(term)
+      );
+    });
+  }, [metrics, metricsOnlyCertified, search]);
 
   useEffect(() => {
     if (globalSearchMatches.length === 0) {
@@ -771,6 +833,7 @@ export default function ExplorerPage() {
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatTile label="Warehouse Objects" value={`${allTables.length}`} delta="Live metadata from API catalog" trend="neutral" />
           <StatTile label="Schemas" value={`${overview?.schema_summary.table_count ? Object.keys(overview.by_schema).length : 0}`} delta={`${overview?.schema_summary.column_count || 0} tracked columns`} trend="neutral" />
+          <StatTile label="Metrics" value={`${metrics.length}`} delta={`Source: ${metricsSource}`} trend="neutral" />
           <StatTile label="Stale Tables" value={`${staleTables}`} delta="Older than 24 hours" trend={staleTables > 0 ? 'down' : 'up'} />
           <StatTile label="Schema Drift" value={`${overview?.schema_drift.changed_tables.length || 0}`} delta={overview?.schema_drift.baseline_exists ? 'Compared to saved baseline' : 'No baseline yet'} trend={(overview?.schema_drift.changed_tables.length || 0) > 0 ? 'down' : 'up'} />
         </section>
@@ -940,6 +1003,50 @@ export default function ExplorerPage() {
               </div>
             </Card>
           </div>
+        ) : null}
+
+        {activeTab === 'metrics' ? (
+          <Card variant="elevated" className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-content-primary">Metrics Catalog</h2>
+                <p className="mt-1 text-sm text-content-secondary">
+                  Central metric registry for humans and agents. Source: {metricsSource}
+                </p>
+              </div>
+              <label className="flex items-center gap-1.5 rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary">
+                <input
+                  type="checkbox"
+                  checked={metricsOnlyCertified}
+                  onChange={(event) => setMetricsOnlyCertified(event.target.checked)}
+                  className="h-3 w-3"
+                />
+                Certified only
+              </label>
+            </div>
+            <div className="mt-3">
+              <DataTable<ExplorerMetric>
+                columns={[
+                  { key: 'metricName', header: 'Metric' },
+                  { key: 'owner', header: 'Owner' },
+                  { key: 'grain', header: 'Grain' },
+                  { key: 'freshnessSla', header: 'SLA' },
+                  {
+                    key: 'certified',
+                    header: 'Certified',
+                    render: (row: ExplorerMetric) => (
+                      <Badge variant={row.certified ? 'success' : 'neutral'}>
+                        {row.certified ? 'Yes' : 'No'}
+                      </Badge>
+                    ),
+                  },
+                  { key: 'source', header: 'Source' },
+                ]}
+                rows={filteredMetrics}
+                emptyLabel="No metrics match the current search/filter."
+              />
+            </div>
+          </Card>
         ) : null}
 
         {activeTab === 'lineage' ? (
