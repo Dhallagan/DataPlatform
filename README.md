@@ -36,6 +36,11 @@ Required variables (minimum):
 - `SUPABASE_SERVICE_KEY`
 - `MOTHERDUCK_TOKEN`
 
+Optional reliability variables:
+
+- `FRESHNESS_THRESHOLDS_JSON` (schema-level max age hours)
+- `FRESHNESS_TABLE_THRESHOLDS_JSON` (table-level max age hours for tier-1 models)
+
 ## Common Commands
 
 ```bash

@@ -33,6 +33,13 @@ DEFAULT_THRESHOLDS = [
     SchemaThreshold("core", 48.0),
 ]
 
+DEFAULT_TABLE_THRESHOLDS = {
+    "core.daily_kpis": 24.0,
+    "core.metric_spine": 24.0,
+    "core.metric_registry": 24.0,
+    "finance.mrr": 24.0,
+}
+
 
 def load_dotenv_if_present() -> None:
     paths = [
@@ -64,6 +71,16 @@ def parse_thresholds(raw: str | None) -> list[SchemaThreshold]:
     parsed: list[SchemaThreshold] = []
     for schema_name, max_age in payload.items():
         parsed.append(SchemaThreshold(schema_name, float(max_age)))
+    return parsed
+
+
+def parse_table_thresholds(raw: str | None) -> dict[str, float]:
+    if not raw:
+        return DEFAULT_TABLE_THRESHOLDS
+    payload = json.loads(raw)
+    parsed: dict[str, float] = {}
+    for table_name, max_age in payload.items():
+        parsed[table_name.strip()] = float(max_age)
     return parsed
 
 
@@ -138,6 +155,7 @@ def connect() -> tuple[duckdb.DuckDBPyConnection, str]:
 
 def check_freshness() -> tuple[bool, list[dict]]:
     thresholds = parse_thresholds(os.environ.get("FRESHNESS_THRESHOLDS_JSON"))
+    table_thresholds = parse_table_thresholds(os.environ.get("FRESHNESS_TABLE_THRESHOLDS_JSON"))
     threshold_map = {item.name: item.max_age_hours for item in thresholds}
     schema_filter = ", ".join(f"'{name}'" for name in threshold_map)
 
@@ -169,6 +187,7 @@ def check_freshness() -> tuple[bool, list[dict]]:
 
         analytics_schemas = {"growth", "product", "finance", "eng", "ops", "core"}
         for schema_name, table_name, freshness_col in targets:
+            table_key = f"{schema_name}.{table_name}"
             if relation_prefix and schema_name in analytics_schemas:
                 relation = f'{relation_prefix}"{schema_name}"."{table_name}"'
             else:
@@ -183,7 +202,7 @@ def check_freshness() -> tuple[bool, list[dict]]:
             ).fetchone()
             freshest = result[0]
             row_count = int(result[1] or 0)
-            max_age = threshold_map[schema_name]
+            max_age = table_thresholds.get(table_key, threshold_map[schema_name])
             stale = True
             age_hours = None
             if freshest is not None:
@@ -196,11 +215,13 @@ def check_freshness() -> tuple[bool, list[dict]]:
                 {
                     "schema": schema_name,
                     "table": table_name,
+                    "table_key": table_key,
                     "freshness_column": freshness_col,
                     "freshest_at": freshest.isoformat() if freshest else None,
                     "row_count": row_count,
                     "age_hours": None if age_hours is None else round(age_hours, 2),
                     "max_age_hours": max_age,
+                    "threshold_scope": "table" if table_key in table_thresholds else "schema",
                     "stale": stale,
                 }
             )

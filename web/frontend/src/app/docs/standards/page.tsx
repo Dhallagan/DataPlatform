@@ -1,5 +1,7 @@
 'use client';
 
+import DocMeta from '@/components/DocMeta';
+
 export default function StandardsPage() {
   return (
     <main className="max-w-6xl space-y-4">
@@ -8,6 +10,12 @@ export default function StandardsPage() {
         <p className="text-sm text-content-secondary mt-1">
           Standards for data quality, reliability, and documentation across Growth, Product, Engineering, Ops, and Finance.
         </p>
+        <DocMeta
+          owner="Data Platform"
+          reviewers="Domain Analytics Leads"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Monthly"
+        />
       </section>
 
       <section id="data-quality-and-reliability-slos" className="bg-surface-elevated border border-border rounded-lg p-5 space-y-3">

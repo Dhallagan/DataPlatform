@@ -1,5 +1,7 @@
 'use client';
 
+import DocMeta from '@/components/DocMeta';
+
 export default function MetricsGovernancePage() {
   return (
     <main className="max-w-6xl space-y-4">
@@ -8,6 +10,12 @@ export default function MetricsGovernancePage() {
         <p className="text-sm text-content-secondary mt-1">
           Ownership model for definitions, instrumentation standards, certification, and change control.
         </p>
+        <DocMeta
+          owner="Data Platform"
+          reviewers="Growth/Product/Finance/Ops Leads"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Biweekly"
+        />
       </section>
 
       <section id="trust-tiers-and-certification" className="bg-surface-elevated border border-border rounded-lg p-5 space-y-3">

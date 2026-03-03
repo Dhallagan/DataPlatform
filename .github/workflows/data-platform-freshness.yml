@@ -29,6 +29,7 @@ jobs:
           WAREHOUSE_DUCKDB_PATH: ${{ secrets.WAREHOUSE_DUCKDB_PATH }}
           ANALYTICS_DUCKDB_PATH: ${{ secrets.ANALYTICS_DUCKDB_PATH }}
           FRESHNESS_THRESHOLDS_JSON: ${{ vars.FRESHNESS_THRESHOLDS_JSON }}
+          FRESHNESS_TABLE_THRESHOLDS_JSON: ${{ vars.FRESHNESS_TABLE_THRESHOLDS_JSON }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
         run: |
           python pipeline/check_freshness.py --format text

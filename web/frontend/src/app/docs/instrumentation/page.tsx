@@ -1,5 +1,7 @@
 'use client';
 
+import DocMeta from '@/components/DocMeta';
+
 export default function InstrumentationPage() {
   return (
     <main className="max-w-6xl space-y-4">
@@ -8,6 +10,12 @@ export default function InstrumentationPage() {
         <p className="text-sm text-content-secondary mt-1">
           Event and action standards to support reliable metrics and future agentic workflows.
         </p>
+        <DocMeta
+          owner="Engineering + Data Platform"
+          reviewers="Product Analytics, Growth Analytics"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Monthly"
+        />
       </section>
 
       <section id="identity-and-event-standards" className="bg-surface-elevated border border-border rounded-lg p-5 space-y-3">

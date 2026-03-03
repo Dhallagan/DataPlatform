@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import DocMeta from '@/components/DocMeta';
 
 interface DocItem {
   title: string;
@@ -117,6 +118,12 @@ export default function DocsIndexPage() {
           Mintlify-style docs hub for architecture, governance, metric contracts, and operational playbooks.
           Use this as the source of truth for how metrics are defined and how teams should act on signals.
         </p>
+        <DocMeta
+          owner="Data Platform"
+          reviewers="Engineering + Domain Analytics"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Monthly"
+        />
         <div className="mt-4">
           <input
             value={search}

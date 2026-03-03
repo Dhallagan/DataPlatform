@@ -1,5 +1,7 @@
 'use client';
 
+import DocMeta from '@/components/DocMeta';
+
 export default function SourcesOfTruthPage() {
   return (
     <main className="max-w-6xl space-y-4">
@@ -8,6 +10,12 @@ export default function SourcesOfTruthPage() {
         <p className="text-sm text-content-secondary mt-1">
           Domain-level canonical data products and ownership to align Growth, Product, Engineering, Ops, and Finance.
         </p>
+        <DocMeta
+          owner="Data Platform"
+          reviewers="Domain Owners"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Monthly"
+        />
       </section>
 
       <section id="growth" className="bg-surface-elevated border border-border rounded-lg p-5">

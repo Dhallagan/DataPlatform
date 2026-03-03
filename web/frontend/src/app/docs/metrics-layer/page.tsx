@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { METRIC_CONTRACTS, MetricContract } from '@/lib/metricGlossary';
+import DocMeta from '@/components/DocMeta';
 
 const DOMAIN_LABELS: Record<MetricContract['domain'], string> = {
   growth: 'Growth',
@@ -78,6 +79,12 @@ export default function MetricsLayerPage() {
         <p className="text-sm text-content-secondary mt-1">
           Governed metric definitions, formulas, ownership, and instrumentation standards.
         </p>
+        <DocMeta
+          owner="Data Platform"
+          reviewers="Finance, Growth, Product, Ops"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Weekly"
+        />
       </section>
 
       <section className="bg-surface-elevated border border-border rounded-lg p-4">

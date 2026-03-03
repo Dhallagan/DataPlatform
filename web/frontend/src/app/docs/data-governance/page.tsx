@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import DocMeta from '@/components/DocMeta';
 
 const SOURCE_TABLES = [
   {
@@ -245,6 +246,12 @@ export default function DataGovernancePage() {
         <p className="text-sm text-content-secondary mt-1">
           Source schema, warehouse layers, and plain-language metric definitions.
         </p>
+        <DocMeta
+          owner="Data Platform"
+          reviewers="Domain Analytics Leads"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Monthly"
+        />
       </section>
 
         <section className="bg-surface-elevated border border-border rounded-lg p-5 space-y-3">
