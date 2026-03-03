@@ -361,6 +361,14 @@ export default function ExplorerPage() {
   const [metricsSource, setMetricsSource] = useState<string>('unknown');
   const [metricsOnlyCertified, setMetricsOnlyCertified] = useState(false);
   const [selectedMetricKey, setSelectedMetricKey] = useState<string>('');
+  const [objectSortKey, setObjectSortKey] = useState<'id' | 'schema' | 'owner' | 'columnCount' | 'freshness'>('id');
+  const [objectSortDir, setObjectSortDir] = useState<'asc' | 'desc'>('asc');
+  const [objectPageSize, setObjectPageSize] = useState(25);
+  const [objectPage, setObjectPage] = useState(1);
+  const [metricSortKey, setMetricSortKey] = useState<'metricName' | 'owner' | 'grain' | 'freshnessSla' | 'certified'>('metricName');
+  const [metricSortDir, setMetricSortDir] = useState<'asc' | 'desc'>('asc');
+  const [metricPageSize, setMetricPageSize] = useState(20);
+  const [metricPage, setMetricPage] = useState(1);
   const [catalogSearchMatches, setCatalogSearchMatches] = useState<SearchMatch[]>([]);
   const [catalogSearchSource, setCatalogSearchSource] = useState<string>('none');
   const [lineageLookupValue, setLineageLookupValue] = useState('metric_spine');
@@ -558,6 +566,92 @@ export default function ExplorerPage() {
       );
     });
   }, [metrics, metricsOnlyCertified, search]);
+
+  const sortedObjects = useMemo(() => {
+    const rows = [...filteredObjects];
+    rows.sort((a, b) => {
+      let left: string | number = '';
+      let right: string | number = '';
+      if (objectSortKey === 'columnCount') {
+        left = a.columnCount;
+        right = b.columnCount;
+      } else if (objectSortKey === 'freshness') {
+        left = a.freshness ? new Date(a.freshness).getTime() : 0;
+        right = b.freshness ? new Date(b.freshness).getTime() : 0;
+      } else if (objectSortKey === 'owner') {
+        left = (a.owner || 'Unknown').toLowerCase();
+        right = (b.owner || 'Unknown').toLowerCase();
+      } else if (objectSortKey === 'schema') {
+        left = a.schema.toLowerCase();
+        right = b.schema.toLowerCase();
+      } else {
+        left = a.id.toLowerCase();
+        right = b.id.toLowerCase();
+      }
+      if (left < right) return objectSortDir === 'asc' ? -1 : 1;
+      if (left > right) return objectSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return rows;
+  }, [filteredObjects, objectSortKey, objectSortDir]);
+
+  const objectTotalPages = useMemo(() => Math.max(1, Math.ceil(sortedObjects.length / objectPageSize)), [sortedObjects.length, objectPageSize]);
+
+  const pagedObjects = useMemo(() => {
+    const start = (objectPage - 1) * objectPageSize;
+    return sortedObjects.slice(start, start + objectPageSize);
+  }, [sortedObjects, objectPage, objectPageSize]);
+
+  const sortedMetrics = useMemo(() => {
+    const rows = [...filteredMetrics];
+    rows.sort((a, b) => {
+      let left: string | number = '';
+      let right: string | number = '';
+      if (metricSortKey === 'certified') {
+        left = a.certified ? 1 : 0;
+        right = b.certified ? 1 : 0;
+      } else if (metricSortKey === 'owner') {
+        left = a.owner.toLowerCase();
+        right = b.owner.toLowerCase();
+      } else if (metricSortKey === 'grain') {
+        left = a.grain.toLowerCase();
+        right = b.grain.toLowerCase();
+      } else if (metricSortKey === 'freshnessSla') {
+        left = a.freshnessSla.toLowerCase();
+        right = b.freshnessSla.toLowerCase();
+      } else {
+        left = a.metricName.toLowerCase();
+        right = b.metricName.toLowerCase();
+      }
+      if (left < right) return metricSortDir === 'asc' ? -1 : 1;
+      if (left > right) return metricSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return rows;
+  }, [filteredMetrics, metricSortKey, metricSortDir]);
+
+  const metricTotalPages = useMemo(() => Math.max(1, Math.ceil(sortedMetrics.length / metricPageSize)), [sortedMetrics.length, metricPageSize]);
+
+  const pagedMetrics = useMemo(() => {
+    const start = (metricPage - 1) * metricPageSize;
+    return sortedMetrics.slice(start, start + metricPageSize);
+  }, [sortedMetrics, metricPage, metricPageSize]);
+
+  useEffect(() => {
+    setObjectPage(1);
+  }, [search, activeDomain, schemaFilter, typeFilter, ownerFilter, certifiedOnly, objectPageSize, objectSortKey, objectSortDir]);
+
+  useEffect(() => {
+    setMetricPage(1);
+  }, [search, metricsOnlyCertified, metricPageSize, metricSortKey, metricSortDir]);
+
+  useEffect(() => {
+    if (objectPage > objectTotalPages) setObjectPage(objectTotalPages);
+  }, [objectPage, objectTotalPages]);
+
+  useEffect(() => {
+    if (metricPage > metricTotalPages) setMetricPage(metricTotalPages);
+  }, [metricPage, metricTotalPages]);
 
   const selectedMetric = useMemo(() => {
     if (!filteredMetrics.length) return null;
@@ -1075,6 +1169,45 @@ export default function ExplorerPage() {
                     Reset
                   </Button>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+                  <select
+                    value={objectSortKey}
+                    onChange={(event) => setObjectSortKey(event.target.value as 'id' | 'schema' | 'owner' | 'columnCount' | 'freshness')}
+                    className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                  >
+                    <option value="id">Sort: Object</option>
+                    <option value="schema">Sort: Schema</option>
+                    <option value="owner">Sort: Owner</option>
+                    <option value="columnCount">Sort: Column Count</option>
+                    <option value="freshness">Sort: Freshness</option>
+                  </select>
+                  <select
+                    value={objectSortDir}
+                    onChange={(event) => setObjectSortDir(event.target.value as 'asc' | 'desc')}
+                    className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                  >
+                    <option value="asc">Asc</option>
+                    <option value="desc">Desc</option>
+                  </select>
+                  <select
+                    value={objectPageSize}
+                    onChange={(event) => setObjectPageSize(Number(event.target.value))}
+                    className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                  >
+                    <option value={10}>10 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
+                  </select>
+                  <div className="ml-auto flex items-center gap-2 text-xs text-content-tertiary">
+                    <Button size="sm" variant="ghost" disabled={objectPage <= 1} onClick={() => setObjectPage((p) => Math.max(1, p - 1))}>
+                      Prev
+                    </Button>
+                    <span>Page {objectPage} / {objectTotalPages}</span>
+                    <Button size="sm" variant="ghost" disabled={objectPage >= objectTotalPages} onClick={() => setObjectPage((p) => Math.min(objectTotalPages, p + 1))}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-3">
@@ -1120,7 +1253,7 @@ export default function ExplorerPage() {
                       ),
                     },
                   ]}
-                  rows={filteredObjects}
+                  rows={pagedObjects}
                   emptyLabel="No objects found for this domain and search."
                 />
               </div>
@@ -1148,6 +1281,45 @@ export default function ExplorerPage() {
               </label>
             </div>
             <div className="mt-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <select
+                  value={metricSortKey}
+                  onChange={(event) => setMetricSortKey(event.target.value as 'metricName' | 'owner' | 'grain' | 'freshnessSla' | 'certified')}
+                  className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                >
+                  <option value="metricName">Sort: Metric</option>
+                  <option value="owner">Sort: Owner</option>
+                  <option value="grain">Sort: Grain</option>
+                  <option value="freshnessSla">Sort: SLA</option>
+                  <option value="certified">Sort: Certified</option>
+                </select>
+                <select
+                  value={metricSortDir}
+                  onChange={(event) => setMetricSortDir(event.target.value as 'asc' | 'desc')}
+                  className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                >
+                  <option value="asc">Asc</option>
+                  <option value="desc">Desc</option>
+                </select>
+                <select
+                  value={metricPageSize}
+                  onChange={(event) => setMetricPageSize(Number(event.target.value))}
+                  className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                >
+                  <option value={10}>10 / page</option>
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                </select>
+                <div className="ml-auto flex items-center gap-2 text-xs text-content-tertiary">
+                  <Button size="sm" variant="ghost" disabled={metricPage <= 1} onClick={() => setMetricPage((p) => Math.max(1, p - 1))}>
+                    Prev
+                  </Button>
+                  <span>Page {metricPage} / {metricTotalPages}</span>
+                  <Button size="sm" variant="ghost" disabled={metricPage >= metricTotalPages} onClick={() => setMetricPage((p) => Math.min(metricTotalPages, p + 1))}>
+                    Next
+                  </Button>
+                </div>
+              </div>
               <DataTable<ExplorerMetric>
                 columns={[
                   { key: 'metricName', header: 'Metric' },
@@ -1179,7 +1351,7 @@ export default function ExplorerPage() {
                     ),
                   },
                 ]}
-                rows={filteredMetrics}
+                rows={pagedMetrics}
                 emptyLabel="No metrics match the current search/filter."
               />
             </div>
