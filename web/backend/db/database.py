@@ -15,6 +15,7 @@ load_dotenv()
 MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
 MOTHERDUCK_DATABASE = os.getenv("MOTHERDUCK_DATABASE", "browserbase_demo")
 SCHEMA_BASELINE_PATH = Path(__file__).resolve().parent / "schema_baseline.json"
+QUERY_AUDIT_LOG_PATH = Path(os.getenv("QUERY_AUDIT_LOG_PATH", str(Path(__file__).resolve().parent / "query_audit.jsonl")))
 
 # Schemas relevant to BrowserBase data.
 # Current dbt layout:
@@ -504,3 +505,12 @@ def get_lineage_for_object(object_name: str) -> dict:
             "related_count": len(related),
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
+
+
+def append_query_audit_event(event: dict[str, Any]) -> None:
+    """Append one query-audit event as JSONL for traceability."""
+    QUERY_AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = dict(event)
+    payload.setdefault("logged_at", datetime.now(timezone.utc).isoformat())
+    with QUERY_AUDIT_LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, default=str) + "\n")

@@ -5,3 +5,4 @@ langchain-anthropic>=0.1.0
 pydantic>=2.5.0
 python-dotenv>=1.0.0
 duckdb>=1.1.0
+sqlglot>=25.0.0

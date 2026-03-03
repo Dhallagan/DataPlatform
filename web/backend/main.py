@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from models.chat import ChatRequest, ChatResponse
 from agent.agent import run_agent, run_agent_streaming
 from agent.tools.schema import introspect_schema
-from agent.tools.query import execute_query
+from agent.tools.query import run_governed_query
 from db.database import (
     get_schema_info,
     test_connection,
@@ -154,13 +154,19 @@ async def run_schema_introspection():
 
 class CustomQueryParams(BaseModel):
     sql: str
+    actor: str | None = None
+    request_id: str | None = None
 
 
 @app.post("/api/reports/query")
 async def run_custom_query(params: CustomQueryParams):
     """Execute a custom SQL query directly."""
     try:
-        result = execute_query.invoke({"sql": params.sql})
+        result = run_governed_query(
+            sql=params.sql,
+            actor=params.actor or "api.reports.query",
+            request_id=params.request_id,
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
