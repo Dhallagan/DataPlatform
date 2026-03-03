@@ -121,6 +121,19 @@ interface MetadataSearchPayload {
   };
 }
 
+interface MetadataHealthPayload {
+  success: boolean;
+  health?: {
+    healthy: boolean;
+    checks: Array<{
+      object: string;
+      exists: boolean;
+      row_count: number;
+      last_loaded_at?: string | null;
+    }>;
+  };
+}
+
 interface DomainSummary {
   id: DomainId;
   label: string;
@@ -379,6 +392,7 @@ export default function ExplorerPage() {
   const [lineageLookupLoading, setLineageLookupLoading] = useState(false);
   const [lineageLookupError, setLineageLookupError] = useState<string | null>(null);
   const [overview, setOverview] = useState<MonitoringOverview | null>(null);
+  const [metadataHealthy, setMetadataHealthy] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
@@ -389,9 +403,10 @@ export default function ExplorerPage() {
       setError(null);
 
       try {
-        const [tablesResponse, monitoring] = await Promise.all([
+        const [tablesResponse, monitoring, healthResponse] = await Promise.all([
           fetch('/api/metadata/tables'),
           getMonitoringOverview(),
+          fetch('/api/metadata/health'),
         ]);
         const metricsResponse = await fetch('/api/metadata/metrics');
 
@@ -400,6 +415,7 @@ export default function ExplorerPage() {
           throw new Error(payload.detail || 'Failed to load warehouse metadata');
         }
         const metricsPayload = (await metricsResponse.json()) as MetricsCatalogPayload;
+        const healthPayload = (await healthResponse.json()) as MetadataHealthPayload;
 
         const next: Record<string, number> = {};
         const nextMeta: Record<string, { owner?: string; certified?: boolean }> = {};
@@ -436,6 +452,7 @@ export default function ExplorerPage() {
         setTablesCatalogGeneratedAt(payload.catalog.generated_at || null);
         setMetrics(normalizedMetrics);
         setMetricsSource(metricsPayload.catalog?.source || 'unknown');
+        setMetadataHealthy(Boolean(healthPayload.health?.healthy));
         setOverview(monitoring);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load explorer data');
@@ -1054,6 +1071,12 @@ export default function ExplorerPage() {
           <StatTile label="Warehouse Objects" value={`${allTables.length}`} delta={`Source: ${tablesCatalogSource}`} trend="neutral" />
           <StatTile label="Schemas" value={`${overview?.schema_summary.table_count ? Object.keys(overview.by_schema).length : 0}`} delta={`${overview?.schema_summary.column_count || 0} tracked columns`} trend="neutral" />
           <StatTile label="Metrics" value={`${metrics.length}`} delta={`Source: ${metricsSource}`} trend="neutral" />
+          <StatTile
+            label="Catalog Health"
+            value={metadataHealthy === null ? 'Unknown' : metadataHealthy ? 'Healthy' : 'Unhealthy'}
+            delta="core.table_catalog / column / metric / lineage"
+            trend={metadataHealthy === null ? 'neutral' : metadataHealthy ? 'up' : 'down'}
+          />
           <StatTile label="Stale Tables" value={`${staleTables}`} delta="Older than 24 hours" trend={staleTables > 0 ? 'down' : 'up'} />
           <StatTile label="Schema Drift" value={`${overview?.schema_drift.changed_tables.length || 0}`} delta={overview?.schema_drift.baseline_exists ? 'Compared to saved baseline' : 'No baseline yet'} trend={(overview?.schema_drift.changed_tables.length || 0) > 0 ? 'down' : 'up'} />
         </section>
