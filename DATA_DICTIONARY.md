@@ -1,6 +1,6 @@
 # Data Dictionary
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 This is the canonical business-facing dictionary for the BrowserBase data platform.
 
@@ -10,6 +10,44 @@ This is the canonical business-facing dictionary for the BrowserBase data platfo
 - `Grain` indicates one row per what.
 - `Primary keys / key columns` are the minimum fields to understand joins and semantics.
 - For metric definitions, source of truth is `core.metric_registry` / `core.metric_catalog`.
+
+## How to use this platform
+
+### Human workflow (Explorer first)
+
+1. Open `/explorer` and start in `Objects`.
+2. Use Quick Find to search tables, columns, or metrics by name.
+3. Click `Inspect` on an object to view:
+   - owner/certification
+   - column definitions
+   - preview rows
+4. Use `Metrics` tab to confirm canonical KPI definitions before analysis.
+5. Use SQL tab only after discovery, and query canonical models (`core`, `finance`, `growth`, `eng`, `ops`, `product`).
+
+### Agent workflow (LLM + metadata APIs)
+
+1. Fetch policy/contract: `GET /llm.txt` (or `/llms.txt`).
+2. Fetch catalog context: `GET /api/metadata/llm-context`.
+3. Resolve objects via search: `GET /api/metadata/search?q=<term>`.
+4. Inspect structure:
+   - `GET /api/metadata/tables`
+   - `GET /api/metadata/tables/{schema.table}`
+   - `GET /api/metadata/tables/{schema.table}/preview`
+5. Execute governed analysis queries through the query API (read-only, audited).
+
+### Catalog maintenance workflow
+
+Run this when metadata looks stale or fallback mode appears:
+
+```bash
+./pipeline/run_catalog_refresh.sh
+```
+
+This rebuilds:
+- `core.table_catalog`
+- `core.column_catalog`
+- `core.metric_catalog`
+- `core.lineage_catalog`
 
 ## Raw Sources (Bronze)
 
