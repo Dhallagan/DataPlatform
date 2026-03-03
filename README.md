@@ -60,6 +60,9 @@ python3 pipeline/ingest_metadata_catalog.py
 cd warehouse
 dbt seed --target duckdb --select metadata_lineage_catalog
 
+# Refresh full central metadata catalog (parse + ingest + seed + build + test)
+./pipeline/run_catalog_refresh.sh
+
 # dbt build/test
 cd warehouse
 dbt run
