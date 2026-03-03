@@ -8,6 +8,7 @@ Foundational business data platform for BrowserBase: ingestion, warehouse modeli
 - `LLM.txt` — machine-readable policy and answer contract for AI workflows
 - `ROADMAP_90_DAYS.md` — phased execution plan and success criteria
 - `CHECKLIST.md` — atomic implementation checklist
+- `DATA_DICTIONARY.md` — business-facing catalog of core tables, grains, and key fields
 
 ## Repository Layout
 
