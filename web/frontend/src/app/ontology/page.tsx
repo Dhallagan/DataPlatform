@@ -237,6 +237,11 @@ export default function OntologyPage() {
   const domainObjects = useMemo<ObjectNode[]>(() => {
     return allTables
       .filter((table) => classifyDomain(table) === activeDomain)
+      .filter((table) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return table.toLowerCase().includes(term) || kindFromName(table).toLowerCase().includes(term);
+      })
       .sort()
       .map((table) => ({
         id: table,
@@ -364,6 +369,14 @@ export default function OntologyPage() {
               </button>
             ))}
           </div>
+          <div className="mt-2">
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Type to filter ontology objects and lineage..."
+              className="w-full md:w-[460px] px-3 py-2 rounded border border-border bg-surface-primary text-sm text-content-primary placeholder:text-content-tertiary"
+            />
+          </div>
           <p className="text-xs text-content-tertiary px-1 pt-2">
             {VIEW_TABS.find((tab) => tab.id === activeTab)?.description}
           </p>
@@ -429,6 +442,9 @@ export default function OntologyPage() {
             <div className="xl:col-span-5 bg-surface-elevated border border-border rounded-lg p-4">
               <h2 className="text-sm font-semibold text-content-primary mb-3">{toDomainLabel(activeDomain)} Objects</h2>
               <div className="space-y-2 max-h-[640px] overflow-auto pr-1">
+                {domainObjects.length === 0 ? (
+                  <p className="text-sm text-content-tertiary">No objects match this filter.</p>
+                ) : null}
                 {domainObjects.map((object) => (
                   <button
                     key={object.id}
@@ -477,12 +493,6 @@ export default function OntologyPage() {
           <section className="bg-surface-elevated border border-border rounded-lg p-4 space-y-3">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <h2 className="text-sm font-semibold text-content-primary">Lineage Explorer</h2>
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search object, table, metric, or signal"
-                className="w-full md:w-80 px-3 py-2 rounded border border-border bg-surface-primary text-sm text-content-primary placeholder:text-content-tertiary"
-              />
             </div>
 
             <div className="overflow-auto border border-border rounded">
