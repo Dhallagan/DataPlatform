@@ -41,6 +41,7 @@ interface TablesCatalogPayload {
   detail?: string;
   catalog?: {
     generated_at: string;
+    source?: string;
     schemas: string[];
     table_count: number;
     tables: Array<{
@@ -354,6 +355,8 @@ export default function ExplorerPage() {
   const [sqlTruncated, setSqlTruncated] = useState(false);
   const [tableColumns, setTableColumns] = useState<Record<string, number>>({});
   const [tableMeta, setTableMeta] = useState<Record<string, { owner?: string; certified?: boolean }>>({});
+  const [tablesCatalogSource, setTablesCatalogSource] = useState<string>('unknown');
+  const [tablesCatalogGeneratedAt, setTablesCatalogGeneratedAt] = useState<string | null>(null);
   const [selectedTableDetail, setSelectedTableDetail] = useState<TableDetailPayload['table'] | null>(null);
   const [selectedTableLoading, setSelectedTableLoading] = useState(false);
   const [selectedTableError, setSelectedTableError] = useState<string | null>(null);
@@ -429,6 +432,8 @@ export default function ExplorerPage() {
 
         setTableColumns(next);
         setTableMeta(nextMeta);
+        setTablesCatalogSource(payload.catalog.source || 'unknown');
+        setTablesCatalogGeneratedAt(payload.catalog.generated_at || null);
         setMetrics(normalizedMetrics);
         setMetricsSource(metricsPayload.catalog?.source || 'unknown');
         setOverview(monitoring);
@@ -997,10 +1002,22 @@ export default function ExplorerPage() {
               <p className="text-sm text-content-primary">
                 Type to search tables/metrics. Use <span className="font-mono">Cmd/Ctrl + K</span> or <span className="font-mono">/</span> to jump to search.
               </p>
+              <p className="text-[11px] text-content-tertiary">
+                Catalog source: <span className="font-mono">{tablesCatalogSource}</span>
+                {tablesCatalogGeneratedAt ? ` • updated ${formatDate(tablesCatalogGeneratedAt)}` : ''}
+              </p>
             </div>
             <Badge variant="accent">{allTables.length} catalog objects</Badge>
           </div>
         </Card>
+        {tablesCatalogSource !== 'core.table_catalog' ? (
+          <Card variant="default" className="p-3 border-warning/40 bg-warning/5">
+            <p className="text-xs text-warning">
+              Explorer is using fallback metadata source (<span className="font-mono">{tablesCatalogSource}</span>).
+              Run <span className="font-mono">./pipeline/run_catalog_refresh.sh</span> to restore central catalog mode.
+            </p>
+          </Card>
+        ) : null}
         {search.trim() ? (
           <Card variant="default" className="p-3">
             <div className="flex items-center justify-between gap-2">
@@ -1034,7 +1051,7 @@ export default function ExplorerPage() {
         ) : null}
 
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Warehouse Objects" value={`${allTables.length}`} delta="Live metadata from API catalog" trend="neutral" />
+          <StatTile label="Warehouse Objects" value={`${allTables.length}`} delta={`Source: ${tablesCatalogSource}`} trend="neutral" />
           <StatTile label="Schemas" value={`${overview?.schema_summary.table_count ? Object.keys(overview.by_schema).length : 0}`} delta={`${overview?.schema_summary.column_count || 0} tracked columns`} trend="neutral" />
           <StatTile label="Metrics" value={`${metrics.length}`} delta={`Source: ${metricsSource}`} trend="neutral" />
           <StatTile label="Stale Tables" value={`${staleTables}`} delta="Older than 24 hours" trend={staleTables > 0 ? 'down' : 'up'} />
