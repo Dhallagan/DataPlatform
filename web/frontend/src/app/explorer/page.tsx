@@ -134,6 +134,26 @@ interface MetadataHealthPayload {
   };
 }
 
+interface MetadataObjectsPayload {
+  success: boolean;
+  objects?: {
+    source: string;
+    page: number;
+    page_size: number;
+    total_count: number;
+    objects: Array<{
+      table_key: string;
+      table_schema: string;
+      table_name: string;
+      owner?: string | null;
+      certified?: boolean;
+      column_count: number;
+      freshness_column?: string | null;
+      catalog_loaded_at?: string | null;
+    }>;
+  };
+}
+
 interface DomainSummary {
   id: DomainId;
   label: string;
@@ -381,6 +401,11 @@ export default function ExplorerPage() {
   const [objectSortDir, setObjectSortDir] = useState<'asc' | 'desc'>('asc');
   const [objectPageSize, setObjectPageSize] = useState(25);
   const [objectPage, setObjectPage] = useState(1);
+  const [serverObjects, setServerObjects] = useState<WarehouseObject[]>([]);
+  const [serverObjectsTotalCount, setServerObjectsTotalCount] = useState(0);
+  const [serverObjectsSource, setServerObjectsSource] = useState('none');
+  const [serverObjectsEnabled, setServerObjectsEnabled] = useState(false);
+  const [serverObjectsLoading, setServerObjectsLoading] = useState(false);
   const [metricSortKey, setMetricSortKey] = useState<'metricName' | 'owner' | 'grain' | 'freshnessSla' | 'certified'>('metricName');
   const [metricSortDir, setMetricSortDir] = useState<'asc' | 'desc'>('asc');
   const [metricPageSize, setMetricPageSize] = useState(20);
@@ -617,12 +642,22 @@ export default function ExplorerPage() {
     return rows;
   }, [filteredObjects, objectSortKey, objectSortDir]);
 
-  const objectTotalPages = useMemo(() => Math.max(1, Math.ceil(sortedObjects.length / objectPageSize)), [sortedObjects.length, objectPageSize]);
+  const objectTotalPages = useMemo(() => {
+    const totalCount = serverObjectsEnabled ? serverObjectsTotalCount : sortedObjects.length;
+    return Math.max(1, Math.ceil(totalCount / objectPageSize));
+  }, [serverObjectsEnabled, serverObjectsTotalCount, sortedObjects.length, objectPageSize]);
 
   const pagedObjects = useMemo(() => {
     const start = (objectPage - 1) * objectPageSize;
     return sortedObjects.slice(start, start + objectPageSize);
   }, [sortedObjects, objectPage, objectPageSize]);
+
+  const displayedObjects = useMemo(
+    () => (serverObjectsEnabled ? serverObjects : pagedObjects),
+    [serverObjectsEnabled, serverObjects, pagedObjects],
+  );
+
+  const displayedObjectCount = serverObjectsEnabled ? serverObjectsTotalCount : filteredObjects.length;
 
   const sortedMetrics = useMemo(() => {
     const rows = [...filteredMetrics];
@@ -670,6 +705,88 @@ export default function ExplorerPage() {
   useEffect(() => {
     if (objectPage > objectTotalPages) setObjectPage(objectTotalPages);
   }, [objectPage, objectTotalPages]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadServerObjects() {
+      setServerObjectsLoading(true);
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      params.set('domain', activeDomain);
+      if (schemaFilter !== 'all') params.set('schema', schemaFilter);
+      if (typeFilter !== 'all') params.set('kind', typeFilter);
+      if (ownerFilter !== 'all') params.set('owner', ownerFilter);
+      if (certifiedOnly) params.set('certified_only', 'true');
+      const sortKeyMap: Record<typeof objectSortKey, string> = {
+        id: 'table_key',
+        schema: 'table_schema',
+        owner: 'owner',
+        columnCount: 'column_count',
+        freshness: 'table_key',
+      };
+      params.set('sort_key', sortKeyMap[objectSortKey]);
+      params.set('sort_dir', objectSortDir);
+      params.set('page', String(objectPage));
+      params.set('page_size', String(objectPageSize));
+
+      try {
+        const response = await fetch(`/api/metadata/objects?${params.toString()}`);
+        const payload = (await response.json()) as MetadataObjectsPayload;
+        if (!response.ok || !payload.success || !payload.objects) throw new Error('metadata objects unavailable');
+        if (cancelled) return;
+
+        setServerObjectsSource(payload.objects.source);
+        const enabled = payload.objects.source === 'core.table_catalog';
+        setServerObjectsEnabled(enabled);
+        if (!enabled) {
+          setServerObjects([]);
+          setServerObjectsTotalCount(0);
+          return;
+        }
+
+        const rows: WarehouseObject[] = payload.objects.objects.map((row) => ({
+          id: row.table_key,
+          schema: row.table_schema,
+          table: row.table_name,
+          domain: classifyDomain(row.table_key),
+          kind: objectKind(row.table_key),
+          columnCount: Number(row.column_count || 0),
+          owner: row.owner || 'Unknown',
+          certified: Boolean(row.certified),
+          freshness: null,
+          rowCount: undefined,
+        }));
+        setServerObjects(rows);
+        setServerObjectsTotalCount(Number(payload.objects.total_count || 0));
+      } catch {
+        if (!cancelled) {
+          setServerObjectsEnabled(false);
+          setServerObjects([]);
+          setServerObjectsTotalCount(0);
+          setServerObjectsSource('fallback');
+        }
+      } finally {
+        if (!cancelled) setServerObjectsLoading(false);
+      }
+    }
+
+    loadServerObjects();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    search,
+    activeDomain,
+    schemaFilter,
+    typeFilter,
+    ownerFilter,
+    certifiedOnly,
+    objectSortKey,
+    objectSortDir,
+    objectPage,
+    objectPageSize,
+  ]);
 
   useEffect(() => {
     if (metricPage > metricTotalPages) setMetricPage(metricTotalPages);
@@ -720,8 +837,11 @@ export default function ExplorerPage() {
   }, [filteredObjects, selectedObjectId]);
 
   const selectedObject = useMemo(
-    () => filteredObjects.find((object) => object.id === selectedObjectId) || null,
-    [filteredObjects, selectedObjectId],
+    () =>
+      displayedObjects.find((object) => object.id === selectedObjectId) ||
+      filteredObjects.find((object) => object.id === selectedObjectId) ||
+      null,
+    [displayedObjects, filteredObjects, selectedObjectId],
   );
 
   useEffect(() => {
@@ -1143,7 +1263,10 @@ export default function ExplorerPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-sm font-semibold text-content-primary">{DOMAIN_META[activeDomain].label} Objects</h2>
-                  <Badge variant="neutral">{filteredObjects.length} objects</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="neutral">{displayedObjectCount} objects</Badge>
+                    <Badge variant="neutral">{serverObjectsSource}</Badge>
+                  </div>
                 </div>
                 <div className="rounded border border-accent/40 bg-accent/5 p-2">
                   <p className="text-xs font-medium text-content-primary">Object Filters</p>
@@ -1239,6 +1362,7 @@ export default function ExplorerPage() {
                     <option value={50}>50 / page</option>
                   </select>
                   <div className="ml-auto flex items-center gap-2 text-xs text-content-tertiary">
+                    {serverObjectsLoading ? <span>Loading...</span> : null}
                     <Button size="sm" variant="ghost" disabled={objectPage <= 1} onClick={() => setObjectPage((p) => Math.max(1, p - 1))}>
                       Prev
                     </Button>
@@ -1293,7 +1417,7 @@ export default function ExplorerPage() {
                       ),
                     },
                   ]}
-                  rows={pagedObjects}
+                  rows={displayedObjects}
                   emptyLabel="No objects found for this domain and search."
                 />
               </div>
