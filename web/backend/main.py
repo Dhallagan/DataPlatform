@@ -27,6 +27,10 @@ from db.database import (
     get_monitoring_overview,
     get_schema_drift,
     save_schema_baseline,
+    get_tables_catalog,
+    get_table_metadata,
+    get_metrics_catalog,
+    get_lineage_for_object,
 )
 
 
@@ -85,6 +89,51 @@ async def get_schema():
     try:
         schema = get_schema_info()
         return {"schema": schema}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# METADATA ENDPOINTS
+# =============================================================================
+
+@app.get("/api/metadata/tables")
+async def metadata_tables():
+    """List discoverable warehouse tables and basic metadata."""
+    try:
+        return {"success": True, "catalog": get_tables_catalog()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/tables/{table_ref:path}")
+async def metadata_table_detail(table_ref: str):
+    """Get detailed metadata for one fully qualified table (schema.table)."""
+    try:
+        metadata = get_table_metadata(table_ref)
+        if metadata is None:
+            raise HTTPException(status_code=404, detail=f"Table not found or not allowed: {table_ref}")
+        return {"success": True, "table": metadata}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/metrics")
+async def metadata_metrics():
+    """List likely metric objects discovered from warehouse models."""
+    try:
+        return {"success": True, "catalog": get_metrics_catalog()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/lineage/{object_name}")
+async def metadata_lineage(object_name: str):
+    """Get lightweight lineage hints for a business object/model."""
+    try:
+        return {"success": True, "lineage": get_lineage_for_object(object_name)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

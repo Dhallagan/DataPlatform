@@ -296,3 +296,211 @@ def get_schema_drift() -> dict:
         "removed_tables": removed_tables,
         "changed_tables": changed_tables,
     }
+
+
+def _schema_filter_sql() -> str:
+    return ", ".join(f"'{s}'" for s in RELEVANT_SCHEMAS)
+
+
+def get_tables_catalog() -> dict:
+    """List warehouse tables with lightweight metadata for explorer/chat discovery."""
+    with get_db() as conn:
+        table_rows = conn.execute(
+            f"""
+            SELECT
+                table_schema,
+                table_name,
+                COUNT(*) AS column_count
+            FROM information_schema.columns
+            WHERE table_schema IN ({_schema_filter_sql()})
+            GROUP BY 1, 2
+            ORDER BY 1, 2
+            """
+        ).fetchall()
+
+        freshness_targets = _discover_freshness_targets(conn)
+        freshness_target_map = {(schema, table): column for schema, table, column in freshness_targets}
+
+        freshness_map: dict[tuple[str, str], str | None] = {}
+        for schema, table, freshness_column in freshness_targets:
+            q_schema = _quoted_identifier(schema)
+            q_table = _quoted_identifier(table)
+            q_freshness = _quoted_identifier(freshness_column)
+            freshest_at = conn.execute(
+                f"""
+                SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
+                FROM {q_schema}.{q_table}
+                """
+            ).fetchone()[0]
+            freshness_map[(schema, table)] = _isoformat(freshest_at)
+
+        tables = []
+        for schema, table, column_count in table_rows:
+            tables.append(
+                {
+                    "table": f"{schema}.{table}",
+                    "table_schema": schema,
+                    "table_name": table,
+                    "column_count": int(column_count or 0),
+                    "freshness_column": freshness_target_map.get((schema, table)),
+                    "freshest_at": freshness_map.get((schema, table)),
+                }
+            )
+
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "schemas": RELEVANT_SCHEMAS,
+            "table_count": len(tables),
+            "tables": tables,
+        }
+
+
+def get_table_metadata(table_ref: str) -> dict | None:
+    """Get detailed table metadata for a fully qualified table name."""
+    if "." not in table_ref:
+        return None
+    schema, table = table_ref.split(".", 1)
+    if schema not in RELEVANT_SCHEMAS:
+        return None
+
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                column_name,
+                data_type,
+                is_nullable,
+                ordinal_position
+            FROM information_schema.columns
+            WHERE table_schema = ?
+              AND table_name = ?
+            ORDER BY ordinal_position
+            """,
+            (schema, table),
+        ).fetchall()
+
+        if not rows:
+            return None
+
+        columns = [
+            {
+                "name": column_name,
+                "type": data_type,
+                "nullable": is_nullable == "YES",
+                "ordinal_position": int(ordinal_position or 0),
+            }
+            for column_name, data_type, is_nullable, ordinal_position in rows
+        ]
+
+        freshness_targets = _discover_freshness_targets(conn)
+        freshness_column = None
+        freshest_at = None
+        for target_schema, target_table, target_col in freshness_targets:
+            if target_schema == schema and target_table == table:
+                freshness_column = target_col
+                q_schema = _quoted_identifier(schema)
+                q_table = _quoted_identifier(table)
+                q_freshness = _quoted_identifier(target_col)
+                freshest_at = _isoformat(
+                    conn.execute(
+                        f"""
+                        SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
+                        FROM {q_schema}.{q_table}
+                        """
+                    ).fetchone()[0]
+                )
+                break
+
+        return {
+            "table": table_ref,
+            "table_schema": schema,
+            "table_name": table,
+            "column_count": len(columns),
+            "columns": columns,
+            "freshness_column": freshness_column,
+            "freshest_at": freshest_at,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+def get_metrics_catalog() -> dict:
+    """Discover likely metrics tables/views from schema naming conventions."""
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT DISTINCT
+                table_schema,
+                table_name
+            FROM information_schema.columns
+            WHERE table_schema IN ({_schema_filter_sql()})
+            ORDER BY 1, 2
+            """
+        ).fetchall()
+
+        metric_keywords = ("metric", "kpi", "mrr", "revenue", "retention", "funnel", "snapshot", "daily_kpis")
+        metrics = []
+        for schema, table in rows:
+            lower = table.lower()
+            if any(keyword in lower for keyword in metric_keywords):
+                full_name = f"{schema}.{table}"
+                metrics.append(
+                    {
+                        "metric_object": full_name,
+                        "table_schema": schema,
+                        "table_name": table,
+                        "certified": schema == "core" or "kpi" in lower or "metric" in lower,
+                    }
+                )
+
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "metric_count": len(metrics),
+            "metrics": metrics,
+        }
+
+
+def get_lineage_for_object(object_name: str) -> dict:
+    """Return a lightweight lineage hint by matching object token across layers."""
+    raw = object_name.strip().lower()
+    token = raw.split(".")[-1]
+    for prefix in ("stg_", "fct_", "dim_", "v_", "kpi_"):
+        if token.startswith(prefix):
+            token = token[len(prefix):]
+    for suffix in ("_daily", "_monthly", "_snapshot", "_kpis", "_metrics"):
+        if token.endswith(suffix):
+            token = token[: -len(suffix)]
+
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT DISTINCT table_schema, table_name
+            FROM information_schema.columns
+            WHERE table_schema IN ({_schema_filter_sql()})
+            ORDER BY 1, 2
+            """
+        ).fetchall()
+
+        related = []
+        for schema, table in rows:
+            if token and token in table.lower():
+                related.append(f"{schema}.{table}")
+
+        bronze = [name for name in related if name.startswith("bronze_supabase.")]
+        silver = [name for name in related if name.startswith("silver.")]
+        analytics = [
+            name
+            for name in related
+            if not name.startswith("bronze_supabase.") and not name.startswith("silver.")
+        ]
+
+        return {
+            "object": object_name,
+            "token": token,
+            "lineage": {
+                "bronze": bronze,
+                "silver": silver,
+                "analytics": analytics,
+            },
+            "related_count": len(related),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }

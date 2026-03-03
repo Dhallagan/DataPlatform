@@ -1,3 +1,15 @@
+# Legacy Plan (Archived)
+
+This file is retained for historical context only and is not the current product direction.
+
+Current source-of-truth documents:
+- `/NORTH_STAR.md`
+- `/LLM.txt`
+- `/ROADMAP_90_DAYS.md`
+- `/CHECKLIST.md`
+
+---
+
 # AutoHoc - Self-Service Ad-Hoc Reporting Portal
 
 ## Current State (v0.1)

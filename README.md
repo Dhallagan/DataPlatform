@@ -1,53 +1,54 @@
 # BrowserBase Data Platform
 
-This repository contains the BrowserBase analytics/data-platform prototype: source schema + seeding, replication into DuckDB/MotherDuck, and dbt models for warehouse and analytics outputs.
+Foundational business data platform for BrowserBase: ingestion, warehouse modeling, governed metrics, and self-serve analytics surfaces (chat, explorer, workflows).
+
+## Canonical Governance Docs
+
+- `NORTH_STAR.md` — mission, strategic outcomes, operating principles
+- `LLM.txt` — machine-readable policy and answer contract for AI workflows
+- `ROADMAP_90_DAYS.md` — phased execution plan and success criteria
+- `CHECKLIST.md` — atomic implementation checklist
 
 ## Repository Layout
 
 - `supabase/` source schema, migrations, and seed scripts
 - `pipeline/` replication and orchestration scripts
 - `warehouse/` dbt project and models
-- `queries/` example SQL queries and checks
-- `workflows/` workflow-related assets
+- `queries/` example SQL checks
+- `web/` chat, explorer, docs, and monitoring product surface
+- `workflows/` automation and agent workflow specs
 
 ## Data Flow
 
-1. Source data is defined/seeded in Supabase.
-2. `pipeline/replicate.py` syncs source data into warehouse bronze tables.
-3. dbt builds staging/core models in warehouse schemas.
-4. dbt builds domain marts in analytics schemas (`growth`, `product`, `finance`, `eng`, `ops`, `core`).
+1. Source data is defined and seeded in Supabase.
+2. `pipeline/replicate.py` syncs source data to `bronze_supabase`.
+3. dbt builds `silver` canonical models and domain schemas (`growth`, `product`, `finance`, `eng`, `ops`, `core`).
+4. Web and workflow surfaces consume governed models and metrics.
 
 ## Environment Setup
 
 1. Copy `env.example` to `.env`.
-2. Fill required values for your target backend (local DuckDB and/or MotherDuck).
+2. Fill required values for local DuckDB and/or MotherDuck.
 
-Important environment variables:
+Required variables (minimum):
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_KEY`
-- `WAREHOUSE_DUCKDB_PATH`
-- `ANALYTICS_DUCKDB_PATH`
-- `MOTHERDUCK_PATH`
-- `MOTHERDUCK_ANALYTICS_PATH`
 - `MOTHERDUCK_TOKEN`
 
 ## Common Commands
 
 ```bash
-# Seed GTM/finance/trial scenarios, then run replicate + dbt + tests
-./pipeline/run_gtm_workflow.sh
-
-# Apply GTM employee-ownership schema migration (requires valid SUPABASE_DB_* env vars)
-psql -v ON_ERROR_STOP=1 -f supabase/migrations/005_gtm_employee_ownership.sql
-
-# Run replication
-python3 pipeline/replicate.py
-
-# Run full pipeline helper
+# End-to-end run (seed + replicate + dbt + tests)
 ./pipeline/run_pipeline.sh
 
-# Run dbt manually
+# GTM/finance/trial scenario workflow
+./pipeline/run_gtm_workflow.sh
+
+# Replicate source -> bronze
+python3 pipeline/replicate.py
+
+# dbt build/test
 cd warehouse
 dbt run
 dbt test
@@ -55,5 +56,6 @@ dbt test
 
 ## Documentation Policy
 
-- Keep root documentation consolidated in this `README.md`.
-- Add detailed notes close to the relevant code instead of creating new root-level Markdown files.
+- Root docs are intentionally small and strategic; keep them current.
+- Put detailed implementation docs next to code in each subsystem.
+- Archive stale narratives instead of letting them conflict with canonical docs.
