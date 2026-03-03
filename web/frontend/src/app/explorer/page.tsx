@@ -594,6 +594,17 @@ export default function ExplorerPage() {
             </>
           }
         />
+        <Card variant="elevated" className="p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-content-tertiary">Quick Find</p>
+              <p className="text-sm text-content-primary">
+                Type to search tables/metrics. Use <span className="font-mono">Cmd/Ctrl + K</span> or <span className="font-mono">/</span> to jump to search.
+              </p>
+            </div>
+            <Badge variant="accent">{allTables.length} catalog objects</Badge>
+          </div>
+        </Card>
         {search.trim() ? (
           <Card variant="default" className="p-3">
             <div className="flex items-center justify-between gap-2">
@@ -695,11 +706,18 @@ export default function ExplorerPage() {
                   <h2 className="text-sm font-semibold text-content-primary">{DOMAIN_META[activeDomain].label} Objects</h2>
                   <Badge variant="neutral">{filteredObjects.length} objects</Badge>
                 </div>
+                <div className="rounded border border-accent/40 bg-accent/5 p-2">
+                  <p className="text-xs font-medium text-content-primary">Object Filters</p>
+                  <p className="text-[11px] text-content-secondary">
+                    Narrow the central catalog by schema, object type, and certification state.
+                  </p>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <select
                     value={schemaFilter}
                     onChange={(event) => setSchemaFilter(event.target.value)}
                     className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                    aria-label="Filter by schema"
                   >
                     {availableSchemas.map((schema) => (
                       <option key={schema} value={schema}>
@@ -711,6 +729,7 @@ export default function ExplorerPage() {
                     value={typeFilter}
                     onChange={(event) => setTypeFilter(event.target.value as 'all' | 'entity' | 'fact' | 'metric')}
                     className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                    aria-label="Filter by object type"
                   >
                     <option value="all">All types</option>
                     <option value="entity">Entity</option>
