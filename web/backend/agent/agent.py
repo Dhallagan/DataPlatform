@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from agent.tools.schema import introspect_schema
 from agent.tools.query import execute_query
+from agent.tools.catalog import search_catalog, describe_table, list_metrics
 
 load_dotenv()
 
@@ -52,9 +53,15 @@ Team-facing aggregates and KPI models:
 
 ## Tools
 - **introspect_schema**: Discover all tables and columns across the warehouse schemas
+- **search_catalog**: Search central catalog for tables/metrics/owners
+- **describe_table**: Get detailed table metadata (columns, owner, certification)
+- **list_metrics**: List metric definitions from central metric catalog
 - **execute_query**: Run read-only SQL queries (SELECT only)
 
 ## Guidelines
+- Start with `search_catalog` for discovery before writing SQL.
+- Use `describe_table` to verify columns/types before query execution.
+- Use `list_metrics` for KPI/definition questions.
 - Start with `core`, `finance`, `growth`, `eng`, `ops`, or `product` tables for KPI questions.
 - Use `silver` tables for canonical entity/fact analysis.
 - Drop to `bronze_supabase` only when detailed raw source data is needed.
@@ -82,6 +89,9 @@ def get_tools() -> list:
     """Get all available tools."""
     return [
         introspect_schema,
+        search_catalog,
+        describe_table,
+        list_metrics,
         execute_query,
     ]
 
