@@ -33,6 +33,7 @@ from db.database import (
     get_lineage_for_object,
     search_metadata_catalog,
     get_metadata_catalog_health,
+    list_metadata_objects,
 )
 
 
@@ -154,6 +155,40 @@ async def metadata_health():
     """Get central catalog health and freshness summary."""
     try:
         return {"success": True, "health": get_metadata_catalog_health()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/objects")
+async def metadata_objects(
+    search: str = "",
+    domain: str | None = None,
+    schema: str | None = None,
+    kind: str | None = None,
+    owner: str | None = None,
+    certified_only: bool = False,
+    sort_key: str = "table_key",
+    sort_dir: str = "asc",
+    page: int = 1,
+    page_size: int = 50,
+):
+    """List metadata objects with filtering, sorting, and pagination."""
+    try:
+        return {
+            "success": True,
+            "objects": list_metadata_objects(
+                search=search,
+                domain=domain,
+                schema=schema,
+                kind=kind,
+                owner=owner,
+                certified_only=certified_only,
+                sort_key=sort_key,
+                sort_dir=sort_dir,
+                page=page,
+                page_size=page_size,
+            ),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

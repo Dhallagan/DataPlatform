@@ -872,6 +872,121 @@ def get_metadata_catalog_health() -> dict:
         }
 
 
+def list_metadata_objects(
+    *,
+    search: str = "",
+    domain: str | None = None,
+    schema: str | None = None,
+    kind: str | None = None,
+    owner: str | None = None,
+    certified_only: bool = False,
+    sort_key: str = "table_key",
+    sort_dir: str = "asc",
+    page: int = 1,
+    page_size: int = 50,
+) -> dict:
+    """List catalog objects with filtering/sorting/pagination."""
+    safe_page = max(1, page)
+    safe_page_size = max(1, min(page_size, 200))
+    offset = (safe_page - 1) * safe_page_size
+    safe_sort_key = sort_key if sort_key in {"table_key", "table_schema", "table_name", "owner", "column_count", "certified"} else "table_key"
+    safe_sort_dir = "DESC" if sort_dir.lower() == "desc" else "ASC"
+    term = search.strip().lower()
+
+    with get_db() as conn:
+        try:
+            where_clauses = ["1 = 1"]
+            params: list[Any] = []
+
+            if term:
+                where_clauses.append("(lower(table_key) LIKE ? OR lower(owner) LIKE ?)")
+                like = f"%{term}%"
+                params.extend([like, like])
+            if schema:
+                where_clauses.append("table_schema = ?")
+                params.append(schema)
+            if owner:
+                where_clauses.append("owner = ?")
+                params.append(owner)
+            if certified_only:
+                where_clauses.append("certified = TRUE")
+
+            if domain:
+                domain_map = {
+                    "customer": "(lower(table_key) LIKE '%organization%' OR lower(table_key) LIKE '%user%' OR lower(table_key) LIKE '%account%' OR lower(table_key) LIKE '%contact%')",
+                    "runtime": "(lower(table_key) LIKE '%session%' OR lower(table_key) LIKE '%run%' OR lower(table_key) LIKE '%event%' OR lower(table_key) LIKE '%project%' OR lower(table_key) LIKE '%api_key%')",
+                    "commercial": "(lower(table_key) LIKE '%plan%' OR lower(table_key) LIKE '%subscription%' OR lower(table_key) LIKE '%invoice%' OR lower(table_key) LIKE '%revenue%' OR lower(table_key) LIKE '%mrr%' OR lower(table_key) LIKE '%usage%')",
+                    "growth": "(lower(table_key) LIKE '%growth%' OR lower(table_key) LIKE '%gtm%' OR lower(table_key) LIKE '%lead%' OR lower(table_key) LIKE '%opportunit%' OR lower(table_key) LIKE '%pipeline%' OR lower(table_key) LIKE '%task%')",
+                    "ops": "(1 = 1)",
+                }
+                where_clauses.append(domain_map.get(domain, "(1 = 1)"))
+
+            if kind:
+                kind_map = {
+                    "metric": "(lower(table_key) LIKE '%kpi%' OR lower(table_key) LIKE '%metric%' OR lower(table_key) LIKE '%mrr%' OR lower(table_key) LIKE '%signal%')",
+                    "fact": "(lower(table_key) LIKE '%fct%' OR lower(table_key) LIKE '%daily%' OR lower(table_key) LIKE '%snapshot%' OR lower(table_key) LIKE '%queue%')",
+                    "entity": "(lower(table_key) NOT LIKE '%kpi%' AND lower(table_key) NOT LIKE '%metric%' AND lower(table_key) NOT LIKE '%mrr%' AND lower(table_key) NOT LIKE '%signal%' AND lower(table_key) NOT LIKE '%fct%' AND lower(table_key) NOT LIKE '%daily%' AND lower(table_key) NOT LIKE '%snapshot%' AND lower(table_key) NOT LIKE '%queue%')",
+                }
+                where_clauses.append(kind_map.get(kind, "(1 = 1)"))
+
+            where_sql = " AND ".join(where_clauses)
+
+            total_count = conn.execute(
+                f"SELECT COUNT(*) FROM core.table_catalog WHERE {where_sql}",
+                params,
+            ).fetchone()[0]
+
+            rows = conn.execute(
+                f"""
+                SELECT
+                    table_key,
+                    table_schema,
+                    table_name,
+                    owner,
+                    certified,
+                    column_count,
+                    freshness_column,
+                    _catalog_loaded_at
+                FROM core.table_catalog
+                WHERE {where_sql}
+                ORDER BY {safe_sort_key} {safe_sort_dir}
+                LIMIT ? OFFSET ?
+                """,
+                [*params, safe_page_size, offset],
+            ).fetchall()
+
+            objects = [
+                {
+                    "table_key": row[0],
+                    "table_schema": row[1],
+                    "table_name": row[2],
+                    "owner": row[3],
+                    "certified": bool(row[4]),
+                    "column_count": int(row[5] or 0),
+                    "freshness_column": row[6],
+                    "catalog_loaded_at": _isoformat(row[7]),
+                }
+                for row in rows
+            ]
+            return {
+                "source": "core.table_catalog",
+                "page": safe_page,
+                "page_size": safe_page_size,
+                "total_count": int(total_count or 0),
+                "objects": objects,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception:
+            return {
+                "source": "fallback_unavailable",
+                "page": safe_page,
+                "page_size": safe_page_size,
+                "total_count": 0,
+                "objects": [],
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+
 def append_query_audit_event(event: dict[str, Any]) -> None:
     """Append one query-audit event as JSONL for traceability."""
     QUERY_AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
