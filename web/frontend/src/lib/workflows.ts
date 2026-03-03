@@ -1,0 +1,108 @@
+export type WorkflowTrigger =
+  | {
+      type: 'time';
+      schedule: string;
+      timezone: string;
+    }
+  | {
+      type: 'event';
+      event: string;
+    };
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description: string;
+  trigger: WorkflowTrigger;
+  inputs: string[];
+  decision_policy: string;
+  actions: string[];
+  human_checkpoint: string;
+  kpis: string[];
+  risk_level: 'low' | 'medium' | 'high';
+  owner: string;
+  code_path: string;
+  last_run_at: string | null;
+}
+
+export const WORKFLOWS: WorkflowDefinition[] = [
+  {
+    id: 'daily_growth_digest',
+    name: 'Daily Growth Prospect Digest',
+    description: 'Scores new leads and sends a ranked daily digest to growth and sales.',
+    trigger: {
+      type: 'time',
+      schedule: '0 8 * * 1-5',
+      timezone: 'America/Los_Angeles',
+    },
+    inputs: ['crm.new_leads', 'enrichment.firmographics', 'pipeline.score_history'],
+    decision_policy: 'Rule-based ICP fit + AI summary for why each lead should be prioritized.',
+    actions: ['write_table:growth.daily_lead_digest', 'send_slack:#growth', 'send_email:growth@browserbase.com'],
+    human_checkpoint: 'Required only when confidence_score < 0.65.',
+    kpis: ['mql_to_sql_rate', 'response_time_to_new_lead'],
+    risk_level: 'medium',
+    owner: 'Growth Ops',
+    code_path: 'workflows/agents/daily_growth_digest.py',
+    last_run_at: '2026-03-01T15:00:00-08:00',
+  },
+  {
+    id: 'weekly_pipeline_review',
+    name: 'Weekly Pipeline Review Prep',
+    description: 'Flags stale opportunities and proposes next-best actions before pipeline meetings.',
+    trigger: {
+      type: 'time',
+      schedule: '0 7 * * 1',
+      timezone: 'America/Los_Angeles',
+    },
+    inputs: ['crm.opportunities', 'crm.activity_log', 'forecast.model_scores'],
+    decision_policy: 'Staleness and risk heuristics with an AI-generated action recommendation.',
+    actions: ['write_table:revenue.weekly_pipeline_risks', 'create_tasks:salesforce', 'send_slack:#revops'],
+    human_checkpoint: 'Manager approval for deal-stage changes.',
+    kpis: ['stage_progression_rate', 'forecast_accuracy'],
+    risk_level: 'medium',
+    owner: 'RevOps',
+    code_path: 'workflows/agents/weekly_pipeline_review.py',
+    last_run_at: '2026-02-23T14:00:00-08:00',
+  },
+  {
+    id: 'monthly_finance_close',
+    name: 'Monthly Finance Close Orchestration',
+    description: 'Runs close checklist, tracks exceptions, and alerts owners on overdue close tasks.',
+    trigger: {
+      type: 'time',
+      schedule: '0 9 1 * *',
+      timezone: 'America/Los_Angeles',
+    },
+    inputs: ['erp.gl_entries', 'erp.reconciliations', 'tasks.finance_close'],
+    decision_policy: 'Deterministic checklist with AI-generated exception summaries.',
+    actions: ['update_tasks:finance_close', 'write_table:finance.close_exceptions', 'send_slack:#finance'],
+    human_checkpoint: 'Controller approval required for unresolved exceptions > $5,000.',
+    kpis: ['days_to_close', 'recon_exception_count'],
+    risk_level: 'high',
+    owner: 'Finance',
+    code_path: 'workflows/agents/monthly_finance_close.py',
+    last_run_at: '2026-03-01T17:00:00-08:00',
+  },
+  {
+    id: 'event_invoice_overdue',
+    name: 'Invoice Overdue Recovery',
+    description: 'Responds to overdue invoice events with dunning and account owner escalation.',
+    trigger: {
+      type: 'event',
+      event: 'invoice_overdue',
+    },
+    inputs: ['billing.invoices', 'crm.accounts', 'collections.contact_preferences'],
+    decision_policy: 'Payment delay rules + AI tone selection for outreach by segment.',
+    actions: ['send_email:dunning_sequence', 'create_task:account_owner', 'write_table:finance.collections_log'],
+    human_checkpoint: 'Approval required before final notice for enterprise accounts.',
+    kpis: ['days_sales_outstanding', 'overdue_recovery_rate'],
+    risk_level: 'high',
+    owner: 'Finance Ops',
+    code_path: 'workflows/agents/event_invoice_overdue.py',
+    last_run_at: '2026-03-02T10:35:00-08:00',
+  },
+];
+
+export function getWorkflowById(workflowId: string): WorkflowDefinition | undefined {
+  return WORKFLOWS.find((workflow) => workflow.id === workflowId);
+}

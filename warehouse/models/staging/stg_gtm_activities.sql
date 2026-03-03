@@ -21,7 +21,8 @@ staged AS (
         subject::TEXT                           AS subject,
         outcome::TEXT                           AS outcome,
         occurred_at::TIMESTAMP                  AS occurred_at,
-        owner_user_id::TEXT                     AS owner_user_id,
+        {{ source_column_or_null('bronze_supabase_gtm', 'activities', 'owner_employee_id', 'TEXT') }} AS owner_employee_id,
+        owner_user_id::TEXT                     AS legacy_owner_user_id,
         created_at::TIMESTAMP                   AS created_at,
         CURRENT_TIMESTAMP                       AS _loaded_at
     FROM source

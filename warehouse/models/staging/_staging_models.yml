@@ -91,6 +91,17 @@ models:
               arguments:
                 values: ['target', 'engaged', 'customer', 'churned']
 
+  - name: stg_gtm_employees
+    description: Internal GTM employee directory used for ownership attribution.
+    columns:
+      - name: employee_id
+        tests:
+          - not_null
+          - unique
+      - name: employee_email
+        tests:
+          - not_null
+
   - name: stg_gtm_contacts
     description: Cleaned GTM contact records from bronze.
     columns:

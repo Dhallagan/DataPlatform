@@ -19,7 +19,8 @@ staged AS (
         budget_usd::DECIMAL(12,2)           AS budget_usd,
         start_date::DATE                    AS start_date,
         end_date::DATE                      AS end_date,
-        owner_user_id::TEXT                 AS owner_user_id,
+        {{ source_column_or_null('bronze_supabase_gtm', 'campaigns', 'owner_employee_id', 'TEXT') }} AS owner_employee_id,
+        owner_user_id::TEXT                 AS legacy_owner_user_id,
         created_at::TIMESTAMP               AS created_at,
         updated_at::TIMESTAMP               AS updated_at,
         CURRENT_TIMESTAMP                   AS _loaded_at

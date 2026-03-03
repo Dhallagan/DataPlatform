@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:ai.pydantic.dev)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(python3:*)",
+      "Bash(uvicorn:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(SSL_CERT_FILE=\"\" python3:*)",
+      "Bash(SSL_CERT_FILE=/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/certifi/cacert.pem python3:*)",
+      "Bash(python:*)",
+      "Bash(PYTHONPATH=. python:*)",
+      "Bash(lsof:*)",
+      "Bash(npx tsc:*)",
+      "Bash(xargs kill:*)",
+      "Bash(/opt/homebrew/opt/python@3.13/bin/pip3 install:*)",
+      "Bash(/opt/homebrew/opt/python@3.13/bin/python3.13 -m pip install anthropic)",
+      "Bash(source venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(kill:*)",
+      "Bash(/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11:*)",
+      "Bash(/Applications/Python 3.11/Install Certificates.command)",
+      "Bash(unset SSL_CERT_FILE)",
+      "Bash(python3.11 -m uvicorn:*)",
+      "Bash(pkill:*)",
+      "Bash(python3.11:*)",
+      "Bash(SSL_CERT_FILE=/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/certifi/cacert.pem python3.11:*)",
+      "WebFetch(domain:dbeaver.io)",
+      "WebFetch(domain:motherduck.com)",
+      "WebFetch(domain:dbeaver.com)",
+      "WebFetch(domain:duckdb.org)",
+      "Bash(chmod +x /Users/dylan/Development/BasedHoc/scripts/start-explorer.sh)",
+      "Bash(/Users/dylan/Development/BasedHoc/scripts/start-explorer.sh)",
+      "Bash(brew install duckdb)",
+      "Bash(export ui_disable_server_certificate_verification=1 && /Users/dylan/Development/BasedHoc/scripts/start-explorer.sh)"
+    ]
+  }
+}

@@ -284,6 +284,19 @@ CREATE TABLE invoices (
 -- =============================================================================
 CREATE SCHEMA IF NOT EXISTS gtm;
 
+-- Internal GTM employees (distinct from customer product users)
+CREATE TABLE gtm.employees (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_email      TEXT NOT NULL UNIQUE,
+    full_name           TEXT,
+    role_title          TEXT,
+    team                TEXT,
+    manager_employee_id UUID REFERENCES gtm.employees(id) ON DELETE SET NULL,
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Accounts (companies being worked by sales/growth)
 CREATE TABLE gtm.accounts (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -295,6 +308,7 @@ CREATE TABLE gtm.accounts (
     account_tier        TEXT,   -- 'tier_1', 'tier_2', 'tier_3'
     account_status      TEXT DEFAULT 'target', -- 'target', 'engaged', 'customer', 'churned'
     owner_user_id       UUID REFERENCES users(id),
+    owner_employee_id   UUID REFERENCES gtm.employees(id),
     source_system       TEXT DEFAULT 'salesforce_sim',
     created_at          TIMESTAMPTZ DEFAULT NOW(),
     updated_at          TIMESTAMPTZ DEFAULT NOW()
@@ -326,6 +340,7 @@ CREATE TABLE gtm.leads (
     source_detail       TEXT, -- campaign/content/source details
     score               INTEGER DEFAULT 0,
     owner_user_id       UUID REFERENCES users(id),
+    owner_employee_id   UUID REFERENCES gtm.employees(id),
     first_touch_at      TIMESTAMPTZ,
     converted_at        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
@@ -343,6 +358,7 @@ CREATE TABLE gtm.campaigns (
     start_date          DATE,
     end_date            DATE,
     owner_user_id       UUID REFERENCES users(id),
+    owner_employee_id   UUID REFERENCES gtm.employees(id),
     created_at          TIMESTAMPTZ DEFAULT NOW(),
     updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
@@ -374,6 +390,7 @@ CREATE TABLE gtm.opportunities (
     is_won                  BOOLEAN,
     loss_reason             TEXT,
     owner_user_id           UUID REFERENCES users(id),
+    owner_employee_id       UUID REFERENCES gtm.employees(id),
     created_at              TIMESTAMPTZ DEFAULT NOW(),
     updated_at              TIMESTAMPTZ DEFAULT NOW()
 );
@@ -391,6 +408,7 @@ CREATE TABLE gtm.activities (
     outcome                 TEXT,
     occurred_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     owner_user_id           UUID REFERENCES users(id),
+    owner_employee_id       UUID REFERENCES gtm.employees(id),
     created_at              TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -592,17 +610,22 @@ CREATE INDEX idx_invoices_status ON invoices(status);
 -- GTM
 CREATE INDEX idx_gtm_accounts_org_id ON gtm.accounts(organization_id);
 CREATE INDEX idx_gtm_accounts_status ON gtm.accounts(account_status);
+CREATE INDEX idx_gtm_accounts_owner_employee_id ON gtm.accounts(owner_employee_id);
 CREATE INDEX idx_gtm_contacts_account_id ON gtm.contacts(account_id);
 CREATE INDEX idx_gtm_leads_account_id ON gtm.leads(account_id);
 CREATE INDEX idx_gtm_leads_status ON gtm.leads(lead_status);
 CREATE INDEX idx_gtm_leads_source ON gtm.leads(lead_source);
+CREATE INDEX idx_gtm_leads_owner_employee_id ON gtm.leads(owner_employee_id);
 CREATE INDEX idx_gtm_campaigns_status ON gtm.campaigns(status);
+CREATE INDEX idx_gtm_campaigns_owner_employee_id ON gtm.campaigns(owner_employee_id);
 CREATE INDEX idx_gtm_touches_lead_id ON gtm.lead_touches(lead_id);
 CREATE INDEX idx_gtm_touches_campaign_id ON gtm.lead_touches(campaign_id);
 CREATE INDEX idx_gtm_opps_account_id ON gtm.opportunities(account_id);
 CREATE INDEX idx_gtm_opps_stage ON gtm.opportunities(stage);
+CREATE INDEX idx_gtm_opps_owner_employee_id ON gtm.opportunities(owner_employee_id);
 CREATE INDEX idx_gtm_activities_account_id ON gtm.activities(account_id);
 CREATE INDEX idx_gtm_activities_occurred_at ON gtm.activities(occurred_at);
+CREATE INDEX idx_gtm_activities_owner_employee_id ON gtm.activities(owner_employee_id);
 
 -- Finance
 CREATE INDEX idx_finance_departments_org_id ON finance.departments(organization_id);

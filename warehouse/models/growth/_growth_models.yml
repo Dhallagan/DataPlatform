@@ -182,3 +182,66 @@ models:
       - name: open_pipeline_usd
         tests:
           - not_null
+
+  - name: gtm_lifecycle_accounts
+    description: GTM lifecycle spine from prospect through paid usage and retention, at account grain.
+    columns:
+      - name: account_id
+        tests:
+          - not_null
+          - unique
+      - name: lifecycle_stage
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['target', 'prospect', 'qualified', 'opportunity', 'closed_won', 'paid_customer', 'active_customer', 'retained_customer', 'churned']
+      - name: did_pay
+        tests:
+          - not_null
+      - name: is_using
+        tests:
+          - not_null
+      - name: is_staying_30d
+        tests:
+          - not_null
+
+  - name: gtm_campaign_channel_performance
+    description: Monthly campaign and channel funnel attribution with owner and ROAS metrics.
+    columns:
+      - name: metric_month
+        tests:
+          - not_null
+      - name: campaign_id
+        tests:
+          - not_null
+      - name: leads_created
+        tests:
+          - not_null
+      - name: opportunities_total
+        tests:
+          - not_null
+      - name: won_revenue_usd
+        tests:
+          - not_null
+
+  - name: gtm_unit_economics_monthly
+    description: Monthly GTM unit economics layer with CAC, retention, ARPU, and LTV proxy metrics.
+    columns:
+      - name: metric_month
+        tests:
+          - not_null
+          - unique
+      - name: campaign_spend_usd
+        tests:
+          - not_null
+      - name: cac_usd
+        tests:
+          - not_null:
+              config:
+                where: "new_paid_customers > 0"
+      - name: retention_30d_rate
+        tests:
+          - not_null:
+              config:
+                where: "new_paid_customers > 0"

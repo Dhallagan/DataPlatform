@@ -1,0 +1,12 @@
+{
+  "id": "daily_growth_digest",
+  "trigger": {"type": "time", "schedule": "0 8 * * 1-5", "timezone": "America/Los_Angeles"},
+  "objective": "Deliver ranked growth prospects every business day.",
+  "runbook": [
+    "Load leads from previous 24h",
+    "Enrich lead context",
+    "Score leads by ICP and intent",
+    "Generate short AI rationale",
+    "Publish digest"
+  ]
+}

@@ -1,0 +1,4 @@
+Requirement already satisfied: duckdb in /Users/dylan/Development/AutoHoc/backend/venv/lib/python3.11/site-packages (1.4.4)
+
+[notice] A new release of pip available: 22.3.1 -> 26.0.1
+[notice] To update, run: python3.11 -m pip install --upgrade pip

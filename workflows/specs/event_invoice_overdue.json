@@ -1,0 +1,12 @@
+{
+  "id": "event_invoice_overdue",
+  "trigger": {"type": "event", "event": "invoice_overdue"},
+  "objective": "Recover overdue receivables while escalating high-risk accounts.",
+  "runbook": [
+    "Receive overdue event",
+    "Load account and invoice context",
+    "Select dunning step",
+    "Notify account owner",
+    "Log collections action"
+  ]
+}

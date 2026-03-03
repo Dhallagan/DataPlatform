@@ -23,7 +23,8 @@ staged AS (
         closed_at::TIMESTAMP                    AS closed_at,
         is_won::BOOLEAN                         AS is_won,
         loss_reason::TEXT                       AS loss_reason,
-        owner_user_id::TEXT                     AS owner_user_id,
+        {{ source_column_or_null('bronze_supabase_gtm', 'opportunities', 'owner_employee_id', 'TEXT') }} AS owner_employee_id,
+        owner_user_id::TEXT                     AS legacy_owner_user_id,
         created_at::TIMESTAMP                   AS created_at,
         updated_at::TIMESTAMP                   AS updated_at,
         CURRENT_TIMESTAMP                       AS _loaded_at

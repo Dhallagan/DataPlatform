@@ -1,0 +1,1 @@
+-- No local schema needed — BasedHoc connects to MotherDuck.

@@ -46,9 +46,11 @@ def rest_get(rest_url: str, headers: dict, path: str) -> list[dict]:
 def rest_upsert(rest_url: str, headers: dict, table: str, rows: list[dict]) -> None:
     if not rows:
         return
+    upsert_headers = dict(headers)
+    upsert_headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
     resp = requests.post(
         f"{rest_url}/{table}?on_conflict=id",
-        headers=headers,
+        headers=upsert_headers,
         json=rows,
         timeout=30,
         verify=False,
@@ -74,6 +76,22 @@ def main() -> None:
         "Accept-Profile": "gtm",
         "Content-Profile": "gtm",
     }
+    supports_employee_ownership = False
+    employee_probe = requests.get(
+        f"{rest_url}/employees?select=id&limit=1",
+        headers={"apikey": key, "Authorization": f"Bearer {key}", "Accept-Profile": "gtm"},
+        timeout=30,
+        verify=False,
+    )
+    owner_col_probe = requests.get(
+        f"{rest_url}/accounts?select=owner_employee_id&limit=1",
+        headers={"apikey": key, "Authorization": f"Bearer {key}", "Accept-Profile": "gtm"},
+        timeout=30,
+        verify=False,
+    )
+    supports_employee_ownership = employee_probe.status_code == 200 and owner_col_probe.status_code == 200
+    if not supports_employee_ownership:
+        print("WARNING: gtm employee ownership columns not found; seeding legacy owner_user_id only.")
 
     orgs = rest_get(
         rest_url,
@@ -91,6 +109,31 @@ def main() -> None:
         raise RuntimeError("No users found. Seed base BrowserBase data first.")
 
     now = datetime.now(UTC)
+    employees: list[dict] = []
+    for i, (name, email, role_title, team) in enumerate(
+        [
+            ("Avery Parker", "avery.parker@browserbase.com", "Account Executive", "sales"),
+            ("Jordan Lee", "jordan.lee@browserbase.com", "Sales Development Rep", "sales"),
+            ("Casey Nguyen", "casey.nguyen@browserbase.com", "Growth Manager", "growth"),
+            ("Riley Shah", "riley.shah@browserbase.com", "Lifecycle Marketer", "growth"),
+            ("Taylor Morgan", "taylor.morgan@browserbase.com", "Partnerships Lead", "partnerships"),
+            ("Sam Rivera", "sam.rivera@browserbase.com", "Revenue Operations", "revops"),
+        ],
+        start=1,
+    ):
+        employees.append(
+            {
+                "id": deterministic_id(f"gtm:employee:{i}"),
+                "employee_email": email,
+                "full_name": name,
+                "role_title": role_title,
+                "team": team,
+                "manager_employee_id": None,
+                "is_active": True,
+                "created_at": ts(now - timedelta(days=120 - i)),
+                "updated_at": ts(now - timedelta(days=max(1, i))),
+            }
+        )
 
     campaigns: list[dict] = []
     for i, (name, channel, status, objective, budget) in enumerate(
@@ -117,6 +160,8 @@ def main() -> None:
                 "updated_at": ts(now - timedelta(days=max(1, i))),
             }
         )
+        if supports_employee_ownership:
+            campaigns[-1]["owner_employee_id"] = employees[(i - 1) % len(employees)]["id"]
 
     accounts: list[dict] = []
     contacts: list[dict] = []
@@ -132,6 +177,7 @@ def main() -> None:
 
     for idx, org in enumerate(orgs, start=1):
         owner = users[(idx - 1) % len(users)]
+        owner_employee = employees[(idx - 1) % len(employees)]
         campaign = campaigns[(idx - 1) % len(campaigns)]
         account_id = deterministic_id(f"gtm:account:{org['id']}")
         contact_id = deterministic_id(f"gtm:contact:{org['id']}")
@@ -164,6 +210,8 @@ def main() -> None:
                 "updated_at": ts(now - timedelta(days=min(idx, 10))),
             }
         )
+        if supports_employee_ownership:
+            accounts[-1]["owner_employee_id"] = owner_employee["id"]
 
         contacts.append(
             {
@@ -197,6 +245,8 @@ def main() -> None:
                 "updated_at": ts(now - timedelta(days=min(idx, 6))),
             }
         )
+        if supports_employee_ownership:
+            leads[-1]["owner_employee_id"] = owner_employee["id"]
 
         lead_touches.append(
             {
@@ -230,6 +280,8 @@ def main() -> None:
                 "updated_at": ts(now - timedelta(days=min(idx, 5))),
             }
         )
+        if supports_employee_ownership:
+            opportunities[-1]["owner_employee_id"] = owner_employee["id"]
 
         for n in range(2):
             occurred = now - timedelta(days=14 - min(idx, 10), hours=n * 6)
@@ -249,6 +301,8 @@ def main() -> None:
                     "created_at": ts(occurred),
                 }
             )
+            if supports_employee_ownership:
+                activities[-1]["owner_employee_id"] = owner_employee["id"]
 
     # Validate that gtm schema is available over API before upserts.
     probe = requests.get(
@@ -265,6 +319,8 @@ def main() -> None:
     if probe.status_code not in (200,):
         raise RuntimeError(f"GTM probe failed: {probe.status_code} {probe.text[:400]}")
 
+    if supports_employee_ownership:
+        rest_upsert(rest_url, gtm_headers, "employees", employees)
     rest_upsert(rest_url, gtm_headers, "campaigns", campaigns)
     rest_upsert(rest_url, gtm_headers, "accounts", accounts)
     rest_upsert(rest_url, gtm_headers, "contacts", contacts)
@@ -274,6 +330,8 @@ def main() -> None:
     rest_upsert(rest_url, gtm_headers, "activities", activities)
 
     print("Seeded GTM data:")
+    if supports_employee_ownership:
+        print(f"  employees:     {len(employees)}")
     print(f"  campaigns:     {len(campaigns)}")
     print(f"  accounts:      {len(accounts)}")
     print(f"  contacts:      {len(contacts)}")

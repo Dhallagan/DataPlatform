@@ -105,6 +105,10 @@ sources:
     schema: "{{ 'gtm' if target.name == 'supabase' else 'bronze_supabase' }}"
 
     tables:
+      - name: employees
+        identifier: "{{ 'employees' if target.name == 'supabase' else 'gtm_employees' }}"
+        description: Internal GTM employee directory for account/lead/opportunity ownership
+
       - name: accounts
         identifier: "{{ 'accounts' if target.name == 'supabase' else 'gtm_accounts' }}"
         description: GTM account records (company-level CRM entities)

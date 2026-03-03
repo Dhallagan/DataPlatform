@@ -8,10 +8,9 @@ import os
 import json
 import duckdb
 import requests
-import urllib3
-from datetime import datetime
-
-urllib3.disable_warnings()
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from datetime import datetime, timezone
 
 # Configuration
 def load_dotenv_if_present():
@@ -51,6 +50,34 @@ WAREHOUSE_PATH = os.environ.get(
 )
 MOTHERDUCK_TOKEN = os.environ.get("MOTHERDUCK_TOKEN")
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SUPABASE_PAGE_SIZE = int(os.environ.get("SUPABASE_PAGE_SIZE", "1000"))
+SUPABASE_REQUEST_TIMEOUT_SECONDS = int(os.environ.get("SUPABASE_REQUEST_TIMEOUT_SECONDS", "30"))
+SUPABASE_VERIFY_TLS = os.environ.get("SUPABASE_VERIFY_TLS", "true").lower() not in {
+    "0",
+    "false",
+    "no",
+}
+
+
+def create_request_session() -> requests.Session:
+    """Create an HTTP session with retry policy for transient Supabase errors."""
+    retry = Retry(
+        total=4,
+        connect=4,
+        read=4,
+        backoff_factor=1.0,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=frozenset({"GET"}),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session = requests.Session()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+REQUEST_SESSION = create_request_session()
 
 # Tables to replicate (in dependency order)
 # - source_table: table name in Supabase
@@ -90,20 +117,54 @@ TABLES = [
 
 
 def fetch_table(table_name: str, schema_name: str = "public") -> list:
-    """Fetch all rows from a Supabase table via REST API."""
+    """Fetch all rows from a Supabase table via paginated REST API calls."""
     url = f"{SUPABASE_URL}/rest/v1/{table_name}?select=*"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Accept-Profile": schema_name,
     }
-    
-    response = requests.get(url, headers=headers, verify=False)
-    if response.status_code != 200:
-        print(f"  ❌ Error fetching {table_name}: {response.status_code}")
-        return []
-    
-    return response.json()
+    rows: list = []
+    offset = 0
+
+    while True:
+        page_headers = {
+            **headers,
+            "Range-Unit": "items",
+            "Range": f"{offset}-{offset + SUPABASE_PAGE_SIZE - 1}",
+        }
+        response = REQUEST_SESSION.get(
+            url,
+            headers=page_headers,
+            timeout=SUPABASE_REQUEST_TIMEOUT_SECONDS,
+            verify=SUPABASE_VERIFY_TLS,
+        )
+        if response.status_code not in (200, 206):
+            raise RuntimeError(
+                f"Supabase fetch failed for {schema_name}.{table_name} "
+                f"(status={response.status_code}): {response.text[:500]}"
+            )
+
+        payload = response.json()
+        if not isinstance(payload, list):
+            raise RuntimeError(
+                f"Unexpected payload type for {schema_name}.{table_name}: {type(payload).__name__}"
+            )
+
+        rows.extend(payload)
+        if len(payload) < SUPABASE_PAGE_SIZE:
+            break
+        offset += SUPABASE_PAGE_SIZE
+
+    return rows
+
+
+def get_table_columns(conn, bronze_table: str) -> list[str]:
+    """Return ordered destination column names for a bronze table."""
+    info = conn.execute(f"PRAGMA table_info('bronze_supabase.{bronze_table}')").fetchall()
+    if not info:
+        raise RuntimeError(f"Destination table not found: bronze_supabase.{bronze_table}")
+    return [row[1] for row in info]
 
 
 def create_bronze_schema(conn):
@@ -593,45 +654,49 @@ def create_bronze_schema(conn):
 
 
 def sync_table(conn, bronze_table: str, rows: list):
-    """Sync rows to DuckDB bronze layer (full refresh for simplicity)."""
-    if not rows:
-        print(f"  ⚠️  {bronze_table}: no rows")
-        return
-    
-    # Clear existing data (full refresh - in production you'd do incremental)
-    conn.execute(f"DELETE FROM bronze_supabase.{bronze_table}")
-    
-    # Get column names from first row
-    columns = list(rows[0].keys())
-    
-    # Handle special columns
-    if "_synced_at" not in columns:
-        columns.append("_synced_at")
-    
-    # Insert rows
+    """Sync rows into DuckDB bronze with all-or-nothing replacement semantics."""
+    dest_columns = get_table_columns(conn, bronze_table)
+    writable_columns = [col for col in dest_columns if col != "_synced_at"]
+    source_columns = [col for col in writable_columns if any(col in row for row in rows)]
+    load_columns = [*source_columns, "_synced_at"]
+    placeholders = ", ".join(["?" for _ in load_columns])
+    col_names = ", ".join([f'"{col}"' for col in load_columns])
+
+    staged_rows = []
+    synced_at = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
     for row in rows:
-        row["_synced_at"] = datetime.now().isoformat()
-        
-        # Convert nested objects to JSON strings (except scopes array).
-        for key, value in list(row.items()):
-            if key == "scopes":
-                continue
-            if isinstance(value, (dict, list)):
-                row[key] = json.dumps(value)
-        
-        values = [row.get(col) for col in columns]
-        placeholders = ", ".join(["?" for _ in columns])
-        col_names = ", ".join([f'"{col}"' for col in columns])
-        
-        try:
-            conn.execute(
-                f"INSERT INTO bronze_supabase.{bronze_table} ({col_names}) VALUES ({placeholders})",
-                values
-            )
-        except Exception as e:
-            # Skip on error (some type mismatches)
-            pass
-    
+        prepared = {}
+        for col in source_columns:
+            value = row.get(col)
+            if col != "scopes" and isinstance(value, (dict, list)):
+                value = json.dumps(value)
+            prepared[col] = value
+        prepared["_synced_at"] = synced_at
+        staged_rows.append(tuple(prepared.get(col) for col in load_columns))
+
+    temp_table = f"temp_sync_{bronze_table}"
+    conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
+    conn.execute(
+        f"""
+        CREATE TEMP TABLE {temp_table}
+        AS SELECT * FROM bronze_supabase.{bronze_table} WHERE 1 = 0
+        """
+    )
+    if staged_rows:
+        conn.executemany(
+            f"INSERT INTO {temp_table} ({col_names}) VALUES ({placeholders})",
+            staged_rows,
+        )
+
+    conn.execute("BEGIN")
+    try:
+        conn.execute(f"DELETE FROM bronze_supabase.{bronze_table}")
+        conn.execute(f"INSERT INTO bronze_supabase.{bronze_table} SELECT * FROM {temp_table}")
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
     print(f"  ✓ {bronze_table}: {len(rows)} rows")
 
 
@@ -668,31 +733,33 @@ def main():
     
     # Connect to local DuckDB or MotherDuck
     conn = connect_warehouse()
-    
-    # Create bronze schema
-    print("Creating bronze schema...")
-    create_bronze_schema(conn)
-    
-    # Sync each table
-    print("\nSyncing tables from Supabase → DuckDB (Bronze)...")
-    for table_cfg in TABLES:
-        source_table = table_cfg["source_table"]
-        source_schema = table_cfg["source_schema"]
-        bronze_table = table_cfg["bronze_table"]
-        rows = fetch_table(source_table, source_schema)
-        sync_table(conn, bronze_table, rows)
-    
-    # Show summary
-    print("\n" + "=" * 60)
-    print("📊 BRONZE LAYER SUMMARY")
-    print("=" * 60)
-    
-    for table_cfg in TABLES:
-        bronze_table = table_cfg["bronze_table"]
-        count = conn.execute(f"SELECT COUNT(*) FROM bronze_supabase.{bronze_table}").fetchone()[0]
-        print(f"  bronze_supabase.{bronze_table:20} {count:>8} rows")
-    
-    conn.close()
+    try:
+        # Create bronze schema
+        print("Creating bronze schema...")
+        create_bronze_schema(conn)
+
+        # Sync each table
+        print("\nSyncing tables from Supabase → DuckDB (Bronze)...")
+        for table_cfg in TABLES:
+            source_table = table_cfg["source_table"]
+            source_schema = table_cfg["source_schema"]
+            bronze_table = table_cfg["bronze_table"]
+            print(f"  → Fetching {source_schema}.{source_table} ...")
+            rows = fetch_table(source_table, source_schema)
+            sync_table(conn, bronze_table, rows)
+
+        # Show summary
+        print("\n" + "=" * 60)
+        print("📊 BRONZE LAYER SUMMARY")
+        print("=" * 60)
+
+        for table_cfg in TABLES:
+            bronze_table = table_cfg["bronze_table"]
+            count = conn.execute(f"SELECT COUNT(*) FROM bronze_supabase.{bronze_table}").fetchone()[0]
+            print(f"  bronze_supabase.{bronze_table:20} {count:>8} rows")
+    finally:
+        conn.close()
+
     print("\n✅ Replication complete!")
     print(f"\nWarehouse file: {WAREHOUSE_PATH}")
 

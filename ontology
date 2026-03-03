@@ -303,6 +303,14 @@ Source -> Ontology object mapping:
 - `subscriptions` -> Subscription
 - `usage_records` -> Usage Record
 - `invoices` -> Invoice
+- `gtm.accounts` -> GTM Account
+- `gtm.employees` -> GTM Employee (internal owner identity)
+- `gtm.contacts` -> GTM Contact
+- `gtm.leads` -> GTM Lead
+- `gtm.campaigns` -> GTM Campaign
+- `gtm.lead_touches` -> GTM Touch
+- `gtm.opportunities` -> GTM Opportunity
+- `gtm.activities` -> GTM Activity
 
 Warehouse model mapping:
 - `silver.organizations` -> Organization canonical table
@@ -311,6 +319,9 @@ Warehouse model mapping:
 - `silver.fct_events` -> Run Event
 - `silver.fct_subscriptions` -> Subscription
 - `growth.growth_daily` + `growth.signal_trial_conversion_risk_daily` -> Growth workflow signals
+- `growth.gtm_lifecycle_accounts` -> GTM lifecycle state spine (`prospect` -> `qualified` -> `opportunity` -> `closed_won` -> `paid` -> `using` -> `staying`)
+- `growth.gtm_campaign_channel_performance` -> campaign/channel funnel and owner attribution
+- `growth.gtm_unit_economics_monthly` -> CAC, retention, ARPU, LTV-proxy reporting
 - `product.product_daily` + `eng.engineering_daily` + `ops.ops_daily` -> Reliability/ops signals
 - `finance.mrr` + `growth.growth_kpis` + `ops.ops_kpis` -> Finance/growth scorecards
 

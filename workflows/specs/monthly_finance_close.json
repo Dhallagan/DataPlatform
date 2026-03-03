@@ -1,0 +1,12 @@
+{
+  "id": "monthly_finance_close",
+  "trigger": {"type": "time", "schedule": "0 9 1 * *", "timezone": "America/Los_Angeles"},
+  "objective": "Coordinate monthly close and route unresolved exceptions.",
+  "runbook": [
+    "Start close checklist",
+    "Collect unresolved reconciliations",
+    "Generate AI exception summaries",
+    "Escalate exceptions by threshold",
+    "Publish close status"
+  ]
+}

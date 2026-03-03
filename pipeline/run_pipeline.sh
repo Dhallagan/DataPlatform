@@ -80,7 +80,11 @@ echo "============================================================"
 echo "STEP 4: Run Data Quality Tests"
 echo "============================================================"
 cd "$PROJECT_DIR/warehouse"
-dbt test --target "$DBT_TARGET" || echo "⚠️  Some tests failed (expected with sample data)"
+if [ "${ALLOW_TEST_FAILURES:-false}" = "true" ]; then
+  dbt test --target "$DBT_TARGET" || echo "⚠️  Tests failed but ALLOW_TEST_FAILURES=true"
+else
+  dbt test --target "$DBT_TARGET"
+fi
 
 # Step 5: Show summary
 echo ""

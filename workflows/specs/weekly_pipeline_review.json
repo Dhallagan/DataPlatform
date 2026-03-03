@@ -1,0 +1,12 @@
+{
+  "id": "weekly_pipeline_review",
+  "trigger": {"type": "time", "schedule": "0 7 * * 1", "timezone": "America/Los_Angeles"},
+  "objective": "Prepare next-best actions before weekly pipeline review.",
+  "runbook": [
+    "Find stale opportunities",
+    "Score stage slippage risk",
+    "Suggest rescue play",
+    "Create follow-up tasks",
+    "Send summary to RevOps"
+  ]
+}

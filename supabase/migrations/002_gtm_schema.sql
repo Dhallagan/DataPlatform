@@ -7,6 +7,18 @@
 
 CREATE SCHEMA IF NOT EXISTS gtm;
 
+CREATE TABLE IF NOT EXISTS gtm.employees (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_email      TEXT NOT NULL UNIQUE,
+    full_name           TEXT,
+    role_title          TEXT,
+    team                TEXT,
+    manager_employee_id UUID REFERENCES gtm.employees(id) ON DELETE SET NULL,
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS gtm.accounts (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id     UUID REFERENCES organizations(id) ON DELETE SET NULL,
@@ -17,6 +29,7 @@ CREATE TABLE IF NOT EXISTS gtm.accounts (
     account_tier        TEXT,
     account_status      TEXT DEFAULT 'target',
     owner_user_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+    owner_employee_id   UUID REFERENCES gtm.employees(id) ON DELETE SET NULL,
     source_system       TEXT DEFAULT 'salesforce_sim',
     created_at          TIMESTAMPTZ DEFAULT NOW(),
     updated_at          TIMESTAMPTZ DEFAULT NOW()
@@ -46,6 +59,7 @@ CREATE TABLE IF NOT EXISTS gtm.leads (
     source_detail       TEXT,
     score               INTEGER DEFAULT 0,
     owner_user_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+    owner_employee_id   UUID REFERENCES gtm.employees(id) ON DELETE SET NULL,
     first_touch_at      TIMESTAMPTZ,
     converted_at        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
@@ -62,6 +76,7 @@ CREATE TABLE IF NOT EXISTS gtm.campaigns (
     start_date          DATE,
     end_date            DATE,
     owner_user_id       UUID REFERENCES users(id) ON DELETE SET NULL,
+    owner_employee_id   UUID REFERENCES gtm.employees(id) ON DELETE SET NULL,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
     updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
@@ -91,6 +106,7 @@ CREATE TABLE IF NOT EXISTS gtm.opportunities (
     is_won                  BOOLEAN,
     loss_reason             TEXT,
     owner_user_id           UUID REFERENCES users(id) ON DELETE SET NULL,
+    owner_employee_id       UUID REFERENCES gtm.employees(id) ON DELETE SET NULL,
     created_at              TIMESTAMPTZ DEFAULT NOW(),
     updated_at              TIMESTAMPTZ DEFAULT NOW()
 );
@@ -107,19 +123,25 @@ CREATE TABLE IF NOT EXISTS gtm.activities (
     outcome                 TEXT,
     occurred_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     owner_user_id           UUID REFERENCES users(id) ON DELETE SET NULL,
+    owner_employee_id       UUID REFERENCES gtm.employees(id) ON DELETE SET NULL,
     created_at              TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_gtm_accounts_org_id ON gtm.accounts(organization_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_accounts_status ON gtm.accounts(account_status);
+CREATE INDEX IF NOT EXISTS idx_gtm_accounts_owner_employee_id ON gtm.accounts(owner_employee_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_contacts_account_id ON gtm.contacts(account_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_leads_account_id ON gtm.leads(account_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_leads_status ON gtm.leads(lead_status);
 CREATE INDEX IF NOT EXISTS idx_gtm_leads_source ON gtm.leads(lead_source);
+CREATE INDEX IF NOT EXISTS idx_gtm_leads_owner_employee_id ON gtm.leads(owner_employee_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_campaigns_status ON gtm.campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_gtm_campaigns_owner_employee_id ON gtm.campaigns(owner_employee_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_touches_lead_id ON gtm.lead_touches(lead_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_touches_campaign_id ON gtm.lead_touches(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_opps_account_id ON gtm.opportunities(account_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_opps_stage ON gtm.opportunities(stage);
+CREATE INDEX IF NOT EXISTS idx_gtm_opps_owner_employee_id ON gtm.opportunities(owner_employee_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_activities_account_id ON gtm.activities(account_id);
 CREATE INDEX IF NOT EXISTS idx_gtm_activities_occurred_at ON gtm.activities(occurred_at);
+CREATE INDEX IF NOT EXISTS idx_gtm_activities_owner_employee_id ON gtm.activities(owner_employee_id);
