@@ -124,12 +124,13 @@ interface MetadataSearchPayload {
     source: string;
     count: number;
     results: Array<{
-      result_type: 'table' | 'metric';
+      result_type: 'table' | 'metric' | 'column';
       name: string;
       owner?: string | null;
       certified?: boolean;
       grain?: string | null;
       freshness_sla?: string | null;
+      table_key?: string | null;
     }>;
   };
 }
@@ -210,10 +211,11 @@ interface ExplorerMetric {
 }
 
 interface SearchMatch {
-  resultType: 'table' | 'metric';
+  resultType: 'table' | 'metric' | 'column';
   name: string;
   owner?: string | null;
   certified?: boolean;
+  tableKey?: string | null;
 }
 
 interface CentralizationStep {
@@ -837,6 +839,21 @@ export default function ExplorerPage() {
       setSelectedMetricKey(match.name);
       return;
     }
+    if (match.resultType === 'column') {
+      setActiveTab('objects');
+      if (match.tableKey) {
+        const object = objects.find((item) => item.id === match.tableKey);
+        if (object) {
+          openObjectFromSearch(object);
+          return;
+        }
+        setSearch(match.tableKey);
+      } else {
+        const parts = match.name.split('.');
+        if (parts.length >= 2) setSearch(parts.slice(0, 2).join('.'));
+      }
+      return;
+    }
     const object = objects.find((item) => item.id === match.name);
     if (object) {
       openObjectFromSearch(object);
@@ -967,6 +984,7 @@ export default function ExplorerPage() {
             name: row.name,
             owner: row.owner,
             certified: row.certified,
+            tableKey: row.table_key,
           })),
         );
       } catch {
@@ -1177,7 +1195,7 @@ export default function ExplorerPage() {
             <div>
               <p className="text-xs uppercase tracking-wide text-content-tertiary">Quick Find</p>
               <p className="text-sm text-content-primary">
-                Type to search tables/metrics. Use <span className="font-mono">Cmd/Ctrl + K</span> or <span className="font-mono">/</span> to jump to search.
+                Type to search tables/columns/metrics. Use <span className="font-mono">Cmd/Ctrl + K</span> or <span className="font-mono">/</span> to jump to search.
               </p>
               <p className="text-[11px] text-content-tertiary">
                 Catalog source: <span className="font-mono">{tablesCatalogSource}</span>
@@ -1218,7 +1236,7 @@ export default function ExplorerPage() {
                     size="sm"
                     onClick={() => openSearchMatch(object)}
                   >
-                    {object.resultType === 'metric' ? 'metric: ' : 'table: '}
+                    {object.resultType === 'metric' ? 'metric: ' : object.resultType === 'column' ? 'column: ' : 'table: '}
                     {object.name}
                   </Button>
                 ))

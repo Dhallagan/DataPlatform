@@ -800,7 +800,8 @@ def search_metadata_catalog(query: str, limit: int = 25) -> dict:
                     owner,
                     certified,
                     NULL AS grain,
-                    NULL AS freshness_sla
+                    NULL AS freshness_sla,
+                    table_key AS table_key
                 FROM core.table_catalog
                 WHERE lower(table_key) LIKE ?
                    OR lower(owner) LIKE ?
@@ -811,15 +812,31 @@ def search_metadata_catalog(query: str, limit: int = 25) -> dict:
                     owner,
                     certified,
                     grain,
-                    freshness_sla
+                    freshness_sla,
+                    NULL AS table_key
                 FROM core.metric_catalog
                 WHERE lower(metric_key) LIKE ?
                    OR lower(metric_name) LIKE ?
                    OR lower(owner) LIKE ?
+                UNION ALL
+                SELECT
+                    'column' AS result_type,
+                    concat(c.table_schema, '.', c.table_name, '.', c.column_name) AS name,
+                    t.owner AS owner,
+                    t.certified AS certified,
+                    NULL AS grain,
+                    NULL AS freshness_sla,
+                    concat(c.table_schema, '.', c.table_name) AS table_key
+                FROM core.column_catalog c
+                LEFT JOIN core.table_catalog t
+                  ON c.table_schema = t.table_schema
+                 AND c.table_name = t.table_name
+                WHERE lower(c.column_name) LIKE ?
+                   OR lower(concat(c.table_schema, '.', c.table_name, '.', c.column_name)) LIKE ?
                 ORDER BY result_type, name
                 LIMIT ?
                 """,
-                (pattern, pattern, pattern, pattern, pattern, safe_limit),
+                (pattern, pattern, pattern, pattern, pattern, pattern, pattern, safe_limit),
             ).fetchall()
             results = [
                 {
@@ -829,6 +846,7 @@ def search_metadata_catalog(query: str, limit: int = 25) -> dict:
                     "certified": bool(row[3]),
                     "grain": row[4],
                     "freshness_sla": row[5],
+                    "table_key": row[6],
                 }
                 for row in rows
             ]
@@ -865,6 +883,7 @@ def search_metadata_catalog(query: str, limit: int = 25) -> dict:
                     "certified": False,
                     "grain": None,
                     "freshness_sla": None,
+                    "table_key": f"{row[0]}.{row[1]}",
                 }
                 for row in rows
             ]
