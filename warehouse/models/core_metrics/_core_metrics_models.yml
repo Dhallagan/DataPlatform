@@ -1,6 +1,38 @@
 version: 2
 
 models:
+  - name: metric_registry
+    description: Certified business metric definitions for self-serve and LLM workflows.
+    columns:
+      - name: metric_name
+        tests:
+          - not_null
+          - unique
+      - name: certified
+        tests:
+          - not_null
+      - name: business_definition
+        tests:
+          - not_null
+      - name: sql_definition_or_model
+        tests:
+          - not_null
+      - name: grain
+        tests:
+          - not_null
+      - name: owner
+        tests:
+          - not_null
+      - name: freshness_sla
+        tests:
+          - not_null
+      - name: version
+        tests:
+          - not_null
+      - name: effective_date
+        tests:
+          - not_null
+
   - name: metric_spine
     description: Canonical organization-level daily metric spine for self-serve analytics.
     columns:

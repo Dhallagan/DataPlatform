@@ -425,39 +425,82 @@ def get_table_metadata(table_ref: str) -> dict | None:
 
 
 def get_metrics_catalog() -> dict:
-    """Discover likely metrics tables/views from schema naming conventions."""
+    """Return metrics catalog, preferring certified registry when available."""
     with get_db() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT DISTINCT
-                table_schema,
-                table_name
-            FROM information_schema.columns
-            WHERE table_schema IN ({_schema_filter_sql()})
-            ORDER BY 1, 2
-            """
-        ).fetchall()
+        try:
+            registry_rows = conn.execute(
+                """
+                SELECT
+                    metric_name,
+                    certified,
+                    business_definition,
+                    sql_definition_or_model,
+                    grain,
+                    owner,
+                    freshness_sla,
+                    quality_tests,
+                    version,
+                    effective_date
+                FROM core.metric_registry
+                ORDER BY metric_name
+                """
+            ).fetchall()
+            metrics = [
+                {
+                    "metric_name": row[0],
+                    "certified": bool(row[1]),
+                    "business_definition": row[2],
+                    "sql_definition_or_model": row[3],
+                    "grain": row[4],
+                    "owner": row[5],
+                    "freshness_sla": row[6],
+                    "quality_tests": row[7],
+                    "version": row[8],
+                    "effective_date": _isoformat(row[9]),
+                    "source": "core.metric_registry",
+                }
+                for row in registry_rows
+            ]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "metric_count": len(metrics),
+                "source": "core.metric_registry",
+                "metrics": metrics,
+            }
+        except Exception:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT
+                    table_schema,
+                    table_name
+                FROM information_schema.columns
+                WHERE table_schema IN ({_schema_filter_sql()})
+                ORDER BY 1, 2
+                """
+            ).fetchall()
 
-        metric_keywords = ("metric", "kpi", "mrr", "revenue", "retention", "funnel", "snapshot", "daily_kpis")
-        metrics = []
-        for schema, table in rows:
-            lower = table.lower()
-            if any(keyword in lower for keyword in metric_keywords):
-                full_name = f"{schema}.{table}"
-                metrics.append(
-                    {
-                        "metric_object": full_name,
-                        "table_schema": schema,
-                        "table_name": table,
-                        "certified": schema == "core" or "kpi" in lower or "metric" in lower,
-                    }
-                )
+            metric_keywords = ("metric", "kpi", "mrr", "revenue", "retention", "funnel", "snapshot", "daily_kpis")
+            metrics = []
+            for schema, table in rows:
+                lower = table.lower()
+                if any(keyword in lower for keyword in metric_keywords):
+                    full_name = f"{schema}.{table}"
+                    metrics.append(
+                        {
+                            "metric_object": full_name,
+                            "table_schema": schema,
+                            "table_name": table,
+                            "certified": schema == "core" or "kpi" in lower or "metric" in lower,
+                            "source": "heuristic_discovery",
+                        }
+                    )
 
-        return {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "metric_count": len(metrics),
-            "metrics": metrics,
-        }
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "metric_count": len(metrics),
+                "source": "heuristic_discovery",
+                "metrics": metrics,
+            }
 
 
 def get_lineage_for_object(object_name: str) -> dict:
