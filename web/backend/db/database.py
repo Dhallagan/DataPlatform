@@ -15,7 +15,7 @@ load_dotenv()
 MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
 MOTHERDUCK_DATABASE = os.getenv("MOTHERDUCK_DATABASE", "browserbase_demo")
 SCHEMA_BASELINE_PATH = Path(__file__).resolve().parent / "schema_baseline.json"
-QUERY_AUDIT_LOG_PATH = Path(os.getenv("QUERY_AUDIT_LOG_PATH", str(Path(__file__).resolve().parent / "query_audit.jsonl")))
+QUERY_AUDIT_LOG_PATH = Path(os.getenv("QUERY_AUDIT_LOG_PATH", "/tmp/browserbase_query_audit.jsonl"))
 
 # Schemas relevant to BrowserBase data.
 # Current dbt layout:
