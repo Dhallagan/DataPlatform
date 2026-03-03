@@ -321,6 +321,7 @@ export default function ExplorerPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [schemaFilter, setSchemaFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'entity' | 'fact' | 'metric'>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [certifiedOnly, setCertifiedOnly] = useState(false);
   const [sqlText, setSqlText] = useState('SELECT * FROM core.daily_kpis ORDER BY date DESC LIMIT 50');
   const [sqlResults, setSqlResults] = useState<Record<string, unknown>[]>([]);
@@ -470,11 +471,12 @@ export default function ExplorerPage() {
       if (object.domain !== activeDomain) return false;
       if (schemaFilter !== 'all' && object.schema !== schemaFilter) return false;
       if (typeFilter !== 'all' && object.kind !== typeFilter) return false;
+      if (ownerFilter !== 'all' && (object.owner || 'Unknown') !== ownerFilter) return false;
       if (certifiedOnly && !object.certified) return false;
       if (!term) return true;
       return object.id.toLowerCase().includes(term) || object.kind.toLowerCase().includes(term);
     });
-  }, [activeDomain, objects, search, schemaFilter, typeFilter, certifiedOnly]);
+  }, [activeDomain, objects, search, schemaFilter, typeFilter, ownerFilter, certifiedOnly]);
 
   const availableSchemas = useMemo(() => {
     const schemas = new Set(
@@ -483,6 +485,15 @@ export default function ExplorerPage() {
         .map((object) => object.schema),
     );
     return ['all', ...Array.from(schemas).sort()];
+  }, [activeDomain, objects]);
+
+  const availableOwners = useMemo(() => {
+    const owners = new Set(
+      objects
+        .filter((object) => object.domain === activeDomain)
+        .map((object) => object.owner || 'Unknown'),
+    );
+    return ['all', ...Array.from(owners).sort()];
   }, [activeDomain, objects]);
 
   const globalSearchMatches = useMemo(() => {
@@ -941,6 +952,18 @@ export default function ExplorerPage() {
                     <option value="fact">Fact</option>
                     <option value="metric">Metric</option>
                   </select>
+                  <select
+                    value={ownerFilter}
+                    onChange={(event) => setOwnerFilter(event.target.value)}
+                    className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                    aria-label="Filter by owner"
+                  >
+                    {availableOwners.map((owner) => (
+                      <option key={owner} value={owner}>
+                        {owner === 'all' ? 'All owners' : owner}
+                      </option>
+                    ))}
+                  </select>
                   <label className="flex items-center gap-1.5 rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary">
                     <input
                       type="checkbox"
@@ -956,6 +979,7 @@ export default function ExplorerPage() {
                     onClick={() => {
                       setSchemaFilter('all');
                       setTypeFilter('all');
+                      setOwnerFilter('all');
                       setCertifiedOnly(false);
                     }}
                   >
@@ -970,6 +994,7 @@ export default function ExplorerPage() {
                     { key: 'id', header: 'Object' },
                     { key: 'schema', header: 'Schema' },
                     { key: 'kind', header: 'Type' },
+                    { key: 'owner', header: 'Owner' },
                     {
                       key: 'certified',
                       header: 'Certified',
