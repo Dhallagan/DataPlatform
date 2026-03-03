@@ -35,6 +35,7 @@ from db.database import (
     search_metadata_catalog,
     get_metadata_catalog_health,
     list_metadata_objects,
+    get_llm_context,
 )
 
 
@@ -202,6 +203,26 @@ async def metadata_objects(
                 sort_dir=sort_dir,
                 page=page,
                 page_size=page_size,
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/llm-context")
+async def metadata_llm_context(
+    table_limit: int = 200,
+    metric_limit: int = 200,
+    column_limit: int = 2000,
+):
+    """Get compact catalog context for LLM and agent workflows."""
+    try:
+        return {
+            "success": True,
+            "context": get_llm_context(
+                limit_tables=table_limit,
+                limit_metrics=metric_limit,
+                limit_columns=column_limit,
             ),
         }
     except Exception as e:

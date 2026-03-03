@@ -686,6 +686,116 @@ def get_metrics_catalog() -> dict:
             }
 
 
+def get_llm_context(limit_tables: int = 200, limit_metrics: int = 200, limit_columns: int = 2000) -> dict:
+    """Return compact warehouse context optimized for LLM discovery."""
+    safe_table_limit = max(1, min(limit_tables, 1000))
+    safe_metric_limit = max(1, min(limit_metrics, 1000))
+    safe_column_limit = max(1, min(limit_columns, 10000))
+
+    with get_db() as conn:
+        try:
+            table_rows = conn.execute(
+                """
+                SELECT
+                    table_key,
+                    owner,
+                    certified,
+                    column_count,
+                    freshness_column
+                FROM core.table_catalog
+                ORDER BY table_key
+                LIMIT ?
+                """,
+                (safe_table_limit,),
+            ).fetchall()
+            metric_rows = conn.execute(
+                """
+                SELECT
+                    metric_key,
+                    metric_name,
+                    owner,
+                    certified,
+                    grain,
+                    freshness_sla
+                FROM core.metric_catalog
+                ORDER BY metric_key
+                LIMIT ?
+                """,
+                (safe_metric_limit,),
+            ).fetchall()
+            column_rows = conn.execute(
+                """
+                SELECT
+                    table_schema,
+                    table_name,
+                    column_name,
+                    data_type,
+                    sensitivity_class
+                FROM core.column_catalog
+                ORDER BY table_schema, table_name, ordinal_position
+                LIMIT ?
+                """,
+                (safe_column_limit,),
+            ).fetchall()
+
+            tables = [
+                {
+                    "table_key": row[0],
+                    "owner": row[1],
+                    "certified": bool(row[2]),
+                    "column_count": int(row[3] or 0),
+                    "freshness_column": row[4],
+                }
+                for row in table_rows
+            ]
+            metrics = [
+                {
+                    "metric_key": row[0],
+                    "metric_name": row[1],
+                    "owner": row[2],
+                    "certified": bool(row[3]),
+                    "grain": row[4],
+                    "freshness_sla": row[5],
+                }
+                for row in metric_rows
+            ]
+            columns = [
+                {
+                    "table_key": f"{row[0]}.{row[1]}",
+                    "column_name": row[2],
+                    "data_type": row[3],
+                    "sensitivity_class": row[4],
+                }
+                for row in column_rows
+            ]
+
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.catalog",
+                "table_count": len(tables),
+                "metric_count": len(metrics),
+                "column_count": len(columns),
+                "tables": tables,
+                "metrics": metrics,
+                "columns": columns,
+            }
+        except Exception:
+            tables_catalog = get_tables_catalog()
+            metrics_catalog = get_metrics_catalog()
+            tables = (tables_catalog.get("tables") or [])[:safe_table_limit]
+            metrics = (metrics_catalog.get("metrics") or [])[:safe_metric_limit]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "fallback",
+                "table_count": len(tables),
+                "metric_count": len(metrics),
+                "column_count": 0,
+                "tables": tables,
+                "metrics": metrics,
+                "columns": [],
+            }
+
+
 def get_lineage_for_object(object_name: str) -> dict:
     """Return a lightweight lineage hint by matching object token across layers."""
     raw = object_name.strip().lower()

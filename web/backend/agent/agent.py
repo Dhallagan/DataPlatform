@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from agent.tools.schema import introspect_schema
 from agent.tools.query import execute_query
-from agent.tools.catalog import search_catalog, describe_table, list_metrics
+from agent.tools.catalog import search_catalog, describe_table, list_metrics, llm_context
 
 load_dotenv()
 
@@ -56,10 +56,12 @@ Team-facing aggregates and KPI models:
 - **search_catalog**: Search central catalog for tables/metrics/owners
 - **describe_table**: Get detailed table metadata (columns, owner, certification)
 - **list_metrics**: List metric definitions from central metric catalog
+- **llm_context**: Fetch compact table/metric/column context for agent planning
 - **execute_query**: Run read-only SQL queries (SELECT only)
 
 ## Guidelines
 - Start with `search_catalog` for discovery before writing SQL.
+- Use `llm_context` when a user asks broad discovery questions across many objects.
 - Use `describe_table` to verify columns/types before query execution.
 - Use `list_metrics` for KPI/definition questions.
 - Start with `core`, `finance`, `growth`, `eng`, `ops`, or `product` tables for KPI questions.
@@ -92,6 +94,7 @@ def get_tools() -> list:
         search_catalog,
         describe_table,
         list_metrics,
+        llm_context,
         execute_query,
     ]
 

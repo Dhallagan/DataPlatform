@@ -1,6 +1,6 @@
 from .schema import introspect_schema
 from .query import execute_query
-from .catalog import search_catalog, describe_table, list_metrics
+from .catalog import search_catalog, describe_table, list_metrics, llm_context
 
 __all__ = [
     "introspect_schema",
@@ -8,4 +8,5 @@ __all__ = [
     "search_catalog",
     "describe_table",
     "list_metrics",
+    "llm_context",
 ]

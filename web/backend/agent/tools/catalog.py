@@ -1,7 +1,7 @@
 """Catalog tools for metadata-first exploration."""
 
 from langchain_core.tools import tool
-from db.database import search_metadata_catalog, get_table_metadata, get_metrics_catalog
+from db.database import search_metadata_catalog, get_table_metadata, get_metrics_catalog, get_llm_context
 
 
 @tool
@@ -41,3 +41,13 @@ def describe_table(table: str) -> dict:
 def list_metrics() -> dict:
     """List central metric catalog definitions."""
     return get_metrics_catalog()
+
+
+@tool
+def llm_context(table_limit: int = 200, metric_limit: int = 200, column_limit: int = 2000) -> dict:
+    """Return compact catalog context optimized for LLM planning and retrieval."""
+    return get_llm_context(
+        limit_tables=table_limit,
+        limit_metrics=metric_limit,
+        limit_columns=column_limit,
+    )
