@@ -48,6 +48,8 @@ interface TablesCatalogPayload {
       table_schema: string;
       table_name: string;
       column_count: number;
+      owner?: string;
+      certified?: boolean;
       freshness_column?: string | null;
       freshest_at?: string | null;
     }>;
@@ -68,6 +70,8 @@ interface WarehouseObject {
   domain: DomainId;
   kind: 'entity' | 'fact' | 'metric';
   columnCount: number;
+  owner?: string;
+  certified?: boolean;
   freshness?: string | null;
   rowCount?: number;
 }
@@ -253,6 +257,9 @@ export default function ExplorerPage() {
   const [search, setSearch] = useState('');
   const [selectedObjectId, setSelectedObjectId] = useState<string>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [schemaFilter, setSchemaFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'entity' | 'fact' | 'metric'>('all');
+  const [certifiedOnly, setCertifiedOnly] = useState(false);
   const [sqlText, setSqlText] = useState('SELECT * FROM core.daily_kpis ORDER BY date DESC LIMIT 50');
   const [sqlResults, setSqlResults] = useState<Record<string, unknown>[]>([]);
   const [sqlColumns, setSqlColumns] = useState<string[]>([]);
@@ -260,6 +267,7 @@ export default function ExplorerPage() {
   const [sqlLoading, setSqlLoading] = useState(false);
   const [sqlTruncated, setSqlTruncated] = useState(false);
   const [tableColumns, setTableColumns] = useState<Record<string, number>>({});
+  const [tableMeta, setTableMeta] = useState<Record<string, { owner?: string; certified?: boolean }>>({});
   const [overview, setOverview] = useState<MonitoringOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -282,11 +290,17 @@ export default function ExplorerPage() {
         }
 
         const next: Record<string, number> = {};
+        const nextMeta: Record<string, { owner?: string; certified?: boolean }> = {};
         for (const table of payload.catalog.tables) {
           next[table.table] = Number(table.column_count || 0);
+          nextMeta[table.table] = {
+            owner: table.owner,
+            certified: table.certified,
+          };
         }
 
         setTableColumns(next);
+        setTableMeta(nextMeta);
         setOverview(monitoring);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load explorer data');
@@ -345,21 +359,35 @@ export default function ExplorerPage() {
           domain: classifyDomain(id),
           kind: objectKind(id),
           columnCount: tableColumns[id] || 0,
+          owner: tableMeta[id]?.owner,
+          certified: Boolean(tableMeta[id]?.certified),
           freshness: freshness?.freshestAt,
           rowCount: freshness?.rowCount,
         };
       })
       .sort((a, b) => a.id.localeCompare(b.id));
-  }, [allTables, freshnessByTable, tableColumns]);
+  }, [allTables, freshnessByTable, tableColumns, tableMeta]);
 
   const filteredObjects = useMemo(() => {
     const term = search.trim().toLowerCase();
     return objects.filter((object) => {
       if (object.domain !== activeDomain) return false;
+      if (schemaFilter !== 'all' && object.schema !== schemaFilter) return false;
+      if (typeFilter !== 'all' && object.kind !== typeFilter) return false;
+      if (certifiedOnly && !object.certified) return false;
       if (!term) return true;
       return object.id.toLowerCase().includes(term) || object.kind.toLowerCase().includes(term);
     });
-  }, [activeDomain, objects, search]);
+  }, [activeDomain, objects, search, schemaFilter, typeFilter, certifiedOnly]);
+
+  const availableSchemas = useMemo(() => {
+    const schemas = new Set(
+      objects
+        .filter((object) => object.domain === activeDomain)
+        .map((object) => object.schema),
+    );
+    return ['all', ...Array.from(schemas).sort()];
+  }, [activeDomain, objects]);
 
   const globalSearchMatches = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -662,16 +690,71 @@ export default function ExplorerPage() {
             </Card>
 
             <Card variant="elevated" className="p-4 xl:col-span-9">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold text-content-primary">{DOMAIN_META[activeDomain].label} Objects</h2>
-                <Badge variant="neutral">{filteredObjects.length} objects</Badge>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-content-primary">{DOMAIN_META[activeDomain].label} Objects</h2>
+                  <Badge variant="neutral">{filteredObjects.length} objects</Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={schemaFilter}
+                    onChange={(event) => setSchemaFilter(event.target.value)}
+                    className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                  >
+                    {availableSchemas.map((schema) => (
+                      <option key={schema} value={schema}>
+                        {schema === 'all' ? 'All schemas' : schema}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={typeFilter}
+                    onChange={(event) => setTypeFilter(event.target.value as 'all' | 'entity' | 'fact' | 'metric')}
+                    className="rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary"
+                  >
+                    <option value="all">All types</option>
+                    <option value="entity">Entity</option>
+                    <option value="fact">Fact</option>
+                    <option value="metric">Metric</option>
+                  </select>
+                  <label className="flex items-center gap-1.5 rounded border border-border bg-surface-primary px-2 py-1.5 text-xs text-content-primary">
+                    <input
+                      type="checkbox"
+                      checked={certifiedOnly}
+                      onChange={(event) => setCertifiedOnly(event.target.checked)}
+                      className="h-3 w-3"
+                    />
+                    Certified only
+                  </label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSchemaFilter('all');
+                      setTypeFilter('all');
+                      setCertifiedOnly(false);
+                    }}
+                  >
+                    Reset
+                  </Button>
+                </div>
               </div>
 
               <div className="mt-3">
                 <DataTable<WarehouseObject>
                   columns={[
                     { key: 'id', header: 'Object' },
+                    { key: 'schema', header: 'Schema' },
                     { key: 'kind', header: 'Type' },
+                    {
+                      key: 'certified',
+                      header: 'Certified',
+                      render: (row: WarehouseObject) => (
+                        <Badge variant={row.certified ? 'success' : 'neutral'}>
+                          {row.certified ? 'Yes' : 'No'}
+                        </Badge>
+                      ),
+                    },
                     { key: 'columnCount', header: 'Columns', align: 'right' },
                     {
                       key: 'freshness',
