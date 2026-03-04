@@ -21,68 +21,26 @@ export default function Toolbar() {
               href="/"
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
             >
-              Workspace
+              Chat
             </Link>
             <Link
-              href="/dashboards"
+              href="/schema"
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
             >
-              Dashboards
+              Schema
             </Link>
             <Link
-              href="/growth-actions"
+              href="/dictionary"
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
             >
-              Growth
+              Dictionary
             </Link>
             <Link
-              href="/finance-actions"
+              href="/terminal"
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
             >
-              Finance
+              Terminal
             </Link>
-            <Link
-              href="/product-actions"
-              className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
-            >
-              Product
-            </Link>
-            <Link
-              href="/cycles"
-              className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
-            >
-              Cycles
-            </Link>
-            <Link
-              href="/monitoring"
-              className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
-            >
-              Monitoring
-            </Link>
-            <Link
-              href="/explorer"
-              className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
-            >
-              Explorer
-            </Link>
-            <Link
-              href="/about"
-              className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
-            >
-              About
-            </Link>
-            <details className="relative">
-              <summary className="list-none cursor-pointer px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors">
-                Docs
-              </summary>
-              <div className="absolute left-0 mt-2 min-w-[220px] border border-border rounded-lg bg-surface-elevated shadow-soft z-20 p-1">
-                <Link href="/docs" className="block px-3 py-2 rounded text-sm text-content-secondary hover:bg-surface-tertiary hover:text-content-primary">Overview</Link>
-                <Link href="/about" className="block px-3 py-2 rounded text-sm text-content-secondary hover:bg-surface-tertiary hover:text-content-primary">About</Link>
-                <Link href="/docs/data-governance" className="block px-3 py-2 rounded text-sm text-content-secondary hover:bg-surface-tertiary hover:text-content-primary">Glossary</Link>
-                <Link href="/docs/metrics-layer" className="block px-3 py-2 rounded text-sm text-content-secondary hover:bg-surface-tertiary hover:text-content-primary">Metrics Layer</Link>
-                <Link href="/docs/sources-of-truth" className="block px-3 py-2 rounded text-sm text-content-secondary hover:bg-surface-tertiary hover:text-content-primary">Sources of Truth</Link>
-              </div>
-            </details>
           </nav>
         </div>
 

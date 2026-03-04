@@ -63,6 +63,7 @@ app = FastAPI(
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LLM_TXT_PATH = REPO_ROOT / "LLM.txt"
+DATA_DICTIONARY_PATH = REPO_ROOT / "DATA_DICTIONARY.md"
 
 # CORS origins can be provided either as FRONTEND_ORIGINS (comma-separated)
 # or as a single FRONTEND_ORIGIN value.
@@ -100,6 +101,18 @@ async def get_schema():
         return {"schema": schema}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/platform/data-dictionary")
+async def platform_data_dictionary():
+    """Return canonical data dictionary markdown for frontend/docs surfaces."""
+    if not DATA_DICTIONARY_PATH.exists():
+        raise HTTPException(status_code=404, detail="DATA_DICTIONARY.md not found")
+    return {
+        "success": True,
+        "name": "DATA_DICTIONARY.md",
+        "markdown": DATA_DICTIONARY_PATH.read_text(encoding="utf-8"),
+    }
 
 
 @app.get("/llm.txt", response_class=PlainTextResponse)
