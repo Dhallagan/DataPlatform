@@ -30,6 +30,24 @@ interface SchemaRow {
   freshnessColumn: string;
 }
 
+type LayerId = 'source' | 'bronze' | 'silver' | 'mart';
+
+const LAYER_ORDER: LayerId[] = ['source', 'bronze', 'silver', 'mart'];
+const LAYER_LABEL: Record<LayerId, string> = {
+  source: 'Source',
+  bronze: 'Bronze',
+  silver: 'Silver',
+  mart: 'Mart',
+};
+
+function classifyLayer(schemaName: string): LayerId {
+  const schema = schemaName.toLowerCase();
+  if (schema === 'public' || schema === 'gtm' || schema === 'finance') return 'source';
+  if (schema.startsWith('bronze')) return 'bronze';
+  if (schema === 'silver') return 'silver';
+  return 'mart';
+}
+
 export default function SchemaPage() {
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<SchemaRow[]>([]);
@@ -81,6 +99,22 @@ export default function SchemaPage() {
     });
   }, [rows, search]);
 
+  const rowsByLayer = useMemo(() => {
+    const grouped: Record<LayerId, SchemaRow[]> = {
+      source: [],
+      bronze: [],
+      silver: [],
+      mart: [],
+    };
+    for (const row of filteredRows) {
+      grouped[classifyLayer(row.schema)].push(row);
+    }
+    for (const layer of LAYER_ORDER) {
+      grouped[layer].sort((a, b) => a.table.localeCompare(b.table));
+    }
+    return grouped;
+  }, [filteredRows]);
+
   if (loading) {
     return (
       <AppShell>
@@ -114,22 +148,30 @@ export default function SchemaPage() {
           </div>
         </Card>
 
-        <DataTable<SchemaRow>
-          columns={[
-            { key: 'table', header: 'Table' },
-            { key: 'schema', header: 'Schema' },
-            { key: 'columns', header: 'Columns', align: 'right' },
-            { key: 'owner', header: 'Owner' },
-            {
-              key: 'certified',
-              header: 'Certified',
-              render: (row: SchemaRow) => <Badge variant={row.certified ? 'success' : 'neutral'}>{row.certified ? 'Yes' : 'No'}</Badge>,
-            },
-            { key: 'freshnessColumn', header: 'Freshness Column' },
-          ]}
-          rows={filteredRows}
-          emptyLabel="No tables match this search."
-        />
+        {LAYER_ORDER.map((layer) => (
+          <Card key={layer} variant="elevated" className="p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-content-primary">{LAYER_LABEL[layer]}</h2>
+              <Badge variant="neutral">{rowsByLayer[layer].length} tables</Badge>
+            </div>
+            <DataTable<SchemaRow>
+              columns={[
+                { key: 'table', header: 'Table' },
+                { key: 'schema', header: 'Schema' },
+                { key: 'columns', header: 'Columns', align: 'right' },
+                { key: 'owner', header: 'Owner' },
+                {
+                  key: 'certified',
+                  header: 'Certified',
+                  render: (row: SchemaRow) => <Badge variant={row.certified ? 'success' : 'neutral'}>{row.certified ? 'Yes' : 'No'}</Badge>,
+                },
+                { key: 'freshnessColumn', header: 'Freshness Column' },
+              ]}
+              rows={rowsByLayer[layer]}
+              emptyLabel={`No ${LAYER_LABEL[layer].toLowerCase()} tables match this search.`}
+            />
+          </Card>
+        ))}
       </div>
     </AppShell>
   );
