@@ -32,9 +32,8 @@ interface SchemaRow {
 
 type LayerId = 'source' | 'bronze' | 'silver' | 'mart';
 
-const LAYER_ORDER: LayerId[] = ['source', 'bronze', 'silver', 'mart'];
-const LAYER_LABEL: Record<LayerId, string> = {
-  source: 'Source',
+const LAYER_ORDER: Array<Exclude<LayerId, 'source'>> = ['bronze', 'silver', 'mart'];
+const LAYER_LABEL: Record<Exclude<LayerId, 'source'>, string> = {
   bronze: 'Bronze',
   silver: 'Silver',
   mart: 'Mart',
@@ -89,8 +88,9 @@ export default function SchemaPage() {
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((row) => {
+    const accessibleRows = rows.filter((row) => classifyLayer(row.schema) !== 'source');
+    if (!term) return accessibleRows;
+    return accessibleRows.filter((row) => {
       return (
         row.table.toLowerCase().includes(term) ||
         row.schema.toLowerCase().includes(term) ||
@@ -100,14 +100,14 @@ export default function SchemaPage() {
   }, [rows, search]);
 
   const rowsByLayer = useMemo(() => {
-    const grouped: Record<LayerId, SchemaRow[]> = {
-      source: [],
+    const grouped: Record<Exclude<LayerId, 'source'>, SchemaRow[]> = {
       bronze: [],
       silver: [],
       mart: [],
     };
     for (const row of filteredRows) {
-      grouped[classifyLayer(row.schema)].push(row);
+      const layer = classifyLayer(row.schema);
+      if (layer !== 'source') grouped[layer].push(row);
     }
     for (const layer of LAYER_ORDER) {
       grouped[layer].sort((a, b) => a.table.localeCompare(b.table));
