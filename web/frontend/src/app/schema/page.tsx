@@ -42,7 +42,7 @@ const LAYER_LABEL: Record<LayerId, string> = {
 
 function classifyLayer(schemaName: string): LayerId {
   const schema = schemaName.toLowerCase();
-  if (schema === 'public' || schema === 'gtm' || schema === 'finance') return 'source';
+  if (schema === 'public' || schema === 'gtm') return 'source';
   if (schema.startsWith('bronze')) return 'bronze';
   if (schema === 'silver') return 'silver';
   return 'mart';
