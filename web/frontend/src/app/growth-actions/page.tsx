@@ -176,7 +176,7 @@ export default function GrowthActionsPage() {
               WHEN signal_score >= 0.80 THEN 'email_then_call'
               ELSE 'email'
             END AS recommended_channel
-          FROM growth.growth_task_queue
+          FROM gtm.growth_task_queue
           WHERE task_status = 'pending'
           ORDER BY
             CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 ELSE 3 END,
@@ -196,7 +196,7 @@ export default function GrowthActionsPage() {
             opportunities_amount_created_usd,
             opportunities_closed_won,
             closed_won_amount_usd
-          FROM growth.gtm_funnel_daily
+          FROM gtm.agg_funnel_daily
           WHERE metric_date >= CURRENT_DATE - INTERVAL '14 days'
           ORDER BY metric_date DESC
           LIMIT 30
@@ -212,7 +212,7 @@ export default function GrowthActionsPage() {
             won_revenue_usd,
             lead_conversion_rate_pct,
             opportunity_win_rate_pct
-          FROM growth.gtm_pipeline_snapshot
+          FROM gtm.snap_pipeline_daily
           ORDER BY as_of_date DESC
           LIMIT 1
         `),
@@ -221,7 +221,7 @@ export default function GrowthActionsPage() {
             action_type,
             status,
             COUNT(*) AS action_count_7d
-          FROM growth.action_log
+          FROM gtm.action_log
           WHERE executed_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
           GROUP BY 1, 2
           ORDER BY action_count_7d DESC, action_type

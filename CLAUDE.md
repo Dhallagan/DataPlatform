@@ -15,7 +15,7 @@
 - Staging: `stg_` prefix (e.g., `stg_sessions`, `stg_plans`)
 - Core entities: no prefix (e.g., `organizations`, `users`, `sessions`)
 - Dimensions: `dim_` prefix, full plural names (e.g., `dim_organizations`, not `dim_org`)
-- Facts: `fct_` prefix, plural (e.g., `fct_runs`, `fct_events`)
+- Facts: `fct_` prefix, plural (e.g., `fct_browser_sessions`, `fct_events`)
 - Analytics models: no prefix, clean names (e.g., `mrr`, `daily_sessions`, `cohort_retention`)
 
 ## Canonical Object Naming (Warehouse + Analytics)
@@ -27,12 +27,12 @@
 - Do not repeat the domain token in the table name (avoid names like `growth_growth_daily`).
 - Do not use vague entity names like `runs` if a precise name exists; prefer `browser_sessions` or `browser_runs`.
 
-### Required Renames (Current Examples)
+### Implemented Naming (Current State)
 
-- `growth.growth_daily` -> `growth.agg_growth_daily` (or a more specific entity form like `growth.agg_pipeline_daily`)
-- `growth.growth_kpis` -> `growth.kpi_growth_daily`
-- `growth.signal_thresholds` -> `growth.cfg_signal_thresholds`
-- `silver.fct_runs` -> `silver.fct_browser_sessions` (or `silver.fct_browser_runs`, pick one canonical term and use consistently)
+- `gtm.agg_growth_daily` — daily growth rollup
+- `gtm.kpi_growth` — growth KPI snapshot
+- `gtm.cfg_signal_thresholds` — signal routing config
+- `core.fct_browser_sessions` — canonical session fact (alias on `sessions.sql`)
 
 ## dbt Testing
 
@@ -42,10 +42,11 @@
 
 ## Architecture
 
-- Two databases: `warehouse` (plumbing) and `analytics` (analyst-facing).
-- Bronze schemas are source-scoped: `bronze_supabase`, `bronze_ramp`, etc.
-- Silver is a single schema in the warehouse DB for all staging + core models.
-- Analytics schemas are division-scoped: `growth`, `product`, `finance`, `eng`, `ops`, `core`.
+- Single database with medallion architecture (bronze → silver → gold).
+- Bronze schemas are source-scoped: `bronze_supabase`, `bronze_supabase_finance`, etc.
+- `silver` schema: staging views (`stg_*`) only.
+- `core` schema: canonical entities, dimensions, facts, and cross-domain metric models.
+- Gold schemas are domain-scoped with 3-letter names: `gtm`, `pro`, `fin`, `eng`, `ops`.
 - New data sources get their own `bronze_<source>` schema and `stg_` models before joining in core.
 
 ## Python / Pipeline

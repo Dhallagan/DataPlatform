@@ -69,17 +69,17 @@ const WAREHOUSE_LAYERS = [
   },
   {
     schema: 'silver',
-    role: 'Standardized staging views plus canonical entities and semantic facts.',
-    examples: 'stg_organizations, organizations, sessions, fct_runs, dim_organizations',
+    role: 'Standardized staging views sourced from raw replicas.',
+    examples: 'stg_organizations, stg_users, stg_sessions, stg_subscriptions',
   },
   {
     schema: 'core',
-    role: 'Cross-domain KPI layer with canonical shared metrics.',
-    examples: 'daily_kpis, metric_spine',
+    role: 'Canonical shared dimensions and facts plus metric spine tables.',
+    examples: 'dim_organizations, dim_users, fct_browser_sessions, metric_spine',
   },
   {
-    schema: 'growth/product/finance/eng/ops',
-    role: 'Domain aggregates and KPI models owned by each function.',
+    schema: 'mart',
+    role: 'Domain aggregates and KPI models consumed by terminal views.',
     examples: 'growth_task_queue, product_kpis, mrr, engineering_daily, ops_kpis',
   },
 ];
@@ -99,25 +99,25 @@ const KPI_GLOSSARY = [
   },
   {
     metric: 'MRR',
-    source: 'finance.mrr',
+    source: 'fin.snap_mrr',
     definition: 'Monthly recurring revenue grouped by plan and total.',
     calc: 'sum(active_subscription_plan_price_usd)',
   },
   {
     metric: 'Activation Rate 7d',
-    source: 'growth.growth_daily / growth.growth_kpis',
+    source: 'gtm.agg_growth_daily / gtm.kpi_growth',
     definition: 'Percent of newly created orgs that run at least one session within 7 days.',
     calc: '(activated_orgs_7d / new_organizations) * 100',
   },
   {
     metric: 'Collection Rate %',
-    source: 'finance.monthly_revenue',
+    source: 'fin.agg_revenue_monthly',
     definition: 'How much invoiced revenue is realized vs total billed.',
     calc: '(realized_revenue_usd / gross_revenue_usd) * 100',
   },
   {
     metric: 'Proxy Adoption %',
-    source: 'product.product_daily / product.product_kpis',
+    source: 'pro.agg_product_daily / pro.kpi_product',
     definition: 'Share of sessions using proxy infrastructure.',
     calc: '(sessions_with_proxy / total_sessions) * 100',
   },
@@ -147,16 +147,13 @@ function getTableTechnicalSummary(schema: string, table: string): string {
   if (schema === 'silver' && table.startsWith('stg_')) {
     return 'Staging model used to normalize raw source records, standardize data types, and prepare stable inputs for core business models.';
   }
-  if (schema === 'silver' && (table === 'organizations' || table === 'users' || table === 'sessions')) {
-    return 'Canonical core entity table. This layer defines trusted business entities with cleaned keys and reusable relationships.';
-  }
   if (schema === 'silver' && table.startsWith('dim_')) {
     return 'Dimension table with descriptive attributes used for filtering, grouping, and consistent business slicing across reports.';
   }
   if (schema === 'silver' && table.startsWith('fct_')) {
     return 'Fact table containing event-like or transactional records at a defined grain used for downstream aggregates and KPI computation.';
   }
-  if (['growth', 'product', 'finance', 'eng', 'ops'].includes(schema)) {
+  if (schema === 'mart') {
     return 'Business mart aggregate. This model rolls up core facts into analysis-ready measures for a specific domain and time grain.';
   }
   if (schema === 'core' && table === 'daily_kpis') {
@@ -185,7 +182,7 @@ export default function DataGovernancePage() {
             column_name,
             data_type
           FROM information_schema.columns
-          WHERE table_schema IN ('silver', 'growth', 'product', 'finance', 'eng', 'ops', 'core')
+          WHERE table_schema IN ('silver', 'core', 'mart')
           ORDER BY table_schema, table_name, ordinal_position
         `;
 

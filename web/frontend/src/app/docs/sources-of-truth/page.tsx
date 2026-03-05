@@ -20,25 +20,25 @@ export default function SourcesOfTruthPage() {
 
       <section id="growth" className="bg-surface-elevated border border-border rounded-lg p-5">
         <h2 className="text-base font-semibold text-content-primary mb-3">Growth</h2>
-        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">growth.gtm_funnel_daily</code>, <code className="font-mono">growth.growth_task_queue</code></p>
+        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">gtm.agg_funnel_daily</code>, <code className="font-mono">gtm.growth_task_queue</code></p>
         <p className="text-xs text-content-tertiary mt-1">Owner: Growth Analytics | Approver: Data Platform</p>
       </section>
 
       <section id="product" className="bg-surface-elevated border border-border rounded-lg p-5">
         <h2 className="text-base font-semibold text-content-primary mb-3">Product</h2>
-        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">product.product_daily</code>, <code className="font-mono">product.product_kpis</code></p>
+        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">pro.agg_product_daily</code>, <code className="font-mono">pro.kpi_product</code></p>
         <p className="text-xs text-content-tertiary mt-1">Owner: Product Analytics | Approver: Data Platform</p>
       </section>
 
       <section id="finance" className="bg-surface-elevated border border-border rounded-lg p-5">
         <h2 className="text-base font-semibold text-content-primary mb-3">Finance</h2>
-        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">finance.mrr</code>, <code className="font-mono">finance.monthly_revenue</code></p>
+        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">fin.snap_mrr</code>, <code className="font-mono">fin.agg_revenue_monthly</code></p>
         <p className="text-xs text-content-tertiary mt-1">Owner: Finance Analytics | Approver: Finance Lead</p>
       </section>
 
       <section id="engineering-and-ops" className="bg-surface-elevated border border-border rounded-lg p-5">
         <h2 className="text-base font-semibold text-content-primary mb-3">Engineering and Ops</h2>
-        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">eng.engineering_daily</code>, <code className="font-mono">ops.ops_kpis</code></p>
+        <p className="text-sm text-content-secondary">Canonical models: <code className="font-mono">eng.agg_engineering_daily</code>, <code className="font-mono">ops.kpi_ops</code></p>
         <p className="text-xs text-content-tertiary mt-1">Owner: Platform Ops | Approver: Engineering Manager</p>
       </section>
 

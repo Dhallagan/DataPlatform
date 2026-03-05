@@ -14,20 +14,28 @@ load_dotenv()
 
 MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
 MOTHERDUCK_DATABASE = os.getenv("MOTHERDUCK_DATABASE", "browserbase_demo")
+MOTHERDUCK_PATH = os.getenv("MOTHERDUCK_PATH", "").strip()
 SCHEMA_BASELINE_PATH = Path(__file__).resolve().parent / "schema_baseline.json"
 QUERY_AUDIT_LOG_PATH = Path(os.getenv("QUERY_AUDIT_LOG_PATH", "/tmp/browserbase_query_audit.jsonl"))
 
 # Schemas relevant to BrowserBase data.
 # Current dbt layout:
 # - bronze_supabase (raw replication)
-# - silver (staging + core canonical models)
-# - analytics domain schemas (growth, product, finance, eng, ops, core)
-RELEVANT_SCHEMAS = ["bronze_supabase", "silver", "growth", "product", "finance", "eng", "ops", "core"]
+# - silver (staging models)
+# - core (canonical dimensions + facts + semantic tables)
+# - mart (domain marts)
+RELEVANT_SCHEMAS = ["bronze_supabase", "silver", "core", "mart"]
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:
     """Create a new MotherDuck connection."""
-    conn_str = f"md:{MOTHERDUCK_DATABASE}?motherduck_token={MOTHERDUCK_TOKEN}"
+    if MOTHERDUCK_PATH:
+        conn_str = MOTHERDUCK_PATH
+        if "motherduck_token=" not in conn_str and MOTHERDUCK_TOKEN:
+            delimiter = "&" if "?" in conn_str else "?"
+            conn_str = f"{conn_str}{delimiter}motherduck_token={MOTHERDUCK_TOKEN}"
+    else:
+        conn_str = f"md:{MOTHERDUCK_DATABASE}?motherduck_token={MOTHERDUCK_TOKEN}"
     return duckdb.connect(conn_str)
 
 

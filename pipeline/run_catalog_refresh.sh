@@ -18,6 +18,7 @@ DBT_TARGET="${DBT_TARGET:-duckdb}"
 if [ "$DBT_TARGET" = "motherduck" ] && [ -n "${MOTHERDUCK_PATH:-}" ]; then
   export WAREHOUSE_DUCKDB_PATH="$MOTHERDUCK_PATH"
 fi
+# All schemas live in a single database — no separate aliases needed.
 
 echo "============================================================"
 echo "METADATA CATALOG REFRESH"

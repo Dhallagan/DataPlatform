@@ -183,11 +183,11 @@ def execute_query(sql: str) -> dict:
 
     Use this tool to run custom SQL queries. Only SELECT queries are allowed.
     Use fully qualified table names: schema_name.table_name
-    (e.g. core.daily_kpis, silver.dim_organizations).
+    (e.g. core.daily_kpis, core.dim_organizations).
 
     This is DuckDB SQL — supports DATE_TRUNC, INTERVAL, window functions,
     CTEs, QUALIFY, list/struct types, etc.
-    Table-specific reminder: `finance.mrr` uses `as_of_date` (not `date`).
+    Table-specific reminder: `fin.snap_mrr` uses `as_of_date` (not `date`).
 
     Args:
         sql: The SQL query to execute. Must be a SELECT statement.

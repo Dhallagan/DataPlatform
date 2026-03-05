@@ -100,7 +100,7 @@ ORDER BY date;`,
   total_mrr_usd,
   total_paying_customers,
   round(arpu_usd, 2) AS arpu_usd
-FROM finance.mrr
+FROM fin.snap_mrr
 WHERE as_of_date >= current_date - interval '365 days'
 ORDER BY as_of_date;`,
       },
@@ -117,7 +117,7 @@ ORDER BY as_of_date;`,
         ...DEFAULT_SQL_PARAM,
         default: `WITH latest AS (
   SELECT *
-  FROM finance.mrr
+  FROM fin.snap_mrr
   QUALIFY row_number() OVER (ORDER BY as_of_date DESC) = 1
 )
 SELECT 'starter' AS plan, starter_mrr_usd AS mrr_usd, starter_customers AS customers FROM latest
@@ -144,7 +144,7 @@ ORDER BY mrr_usd DESC;`,
   cohort_size,
   active_orgs,
   round(retention_pct, 2) AS retention_pct
-FROM growth.cohort_retention
+FROM gtm.agg_cohort_retention_weekly
 WHERE cohort_week >= current_date - interval '180 days'
 ORDER BY cohort_week, week_n;`,
       },
@@ -165,7 +165,7 @@ ORDER BY cohort_week, week_n;`,
     date_trunc('week', organization_created_at)::DATE AS signup_week,
     organization_created_at,
     is_paying_customer
-  FROM silver.organizations
+  FROM core.dim_organizations
   WHERE organization_created_at >= current_date - interval '180 days'
 ),
 activation AS (
@@ -173,7 +173,7 @@ activation AS (
     o.organization_id,
     min(s.started_at) AS first_session_at
   FROM orgs o
-  LEFT JOIN silver.sessions s
+  LEFT JOIN core.fct_browser_sessions s
     ON s.organization_id = o.organization_id
   GROUP BY 1
 )
@@ -218,7 +218,7 @@ ORDER BY 1 DESC;`,
   lifetime_sessions,
   activity_tier,
   last_session_date
-FROM growth.active_organizations
+FROM gtm.agg_active_organizations
 ORDER BY sessions_last_30d DESC
 LIMIT 25;`,
       },
@@ -238,20 +238,20 @@ LIMIT 25;`,
     COUNT(*) AS queued_tasks,
     COUNT(DISTINCT signal_id) AS queued_signals,
     AVG(signal_score) AS avg_signal_score
-  FROM growth.growth_task_queue
+  FROM gtm.growth_task_queue
 ),
 action_stats AS (
   SELECT
     COUNT(*) AS actions_logged,
     COUNT(*) FILTER (WHERE status = 'success') AS actions_success,
     COUNT(*) FILTER (WHERE status = 'failed') AS actions_failed
-  FROM growth.action_log
+  FROM gtm.action_log
 ),
 coverage AS (
   SELECT
     COUNT(*) AS queue_without_action
-  FROM growth.growth_task_queue q
-  LEFT JOIN growth.action_log a
+  FROM gtm.growth_task_queue q
+  LEFT JOIN gtm.action_log a
     ON a.task_id = q.task_id
    AND a.signal_id = q.signal_id
   WHERE a.task_id IS NULL
@@ -289,7 +289,7 @@ CROSS JOIN coverage c;`,
   days_since_last_session,
   current_period_end::DATE AS renewal_date,
   lifetime_sessions
-FROM silver.organizations
+FROM core.dim_organizations
 WHERE is_paying_customer = true
   AND days_since_last_session >= 14
 ORDER BY days_since_last_session DESC, current_plan_price_usd DESC
@@ -314,7 +314,7 @@ LIMIT 100;`,
   round(timeout_rate_pct, 2) AS timeout_rate_pct,
   round(errors_per_1k_sessions, 2) AS errors_per_1k_sessions,
   round(p95_duration_seconds, 1) AS p95_duration_seconds
-FROM eng.engineering_daily
+FROM eng.agg_engineering_daily
 WHERE metric_date >= current_date - interval '29 days'
 ORDER BY metric_date;`,
       },
@@ -336,7 +336,7 @@ ORDER BY metric_date;`,
   round(stealth_adoption_pct, 2) AS stealth_adoption_pct,
   round(success_rate_pct, 2) AS success_rate_pct,
   unique_domains_visited
-FROM product.product_daily
+FROM pro.agg_product_daily
 WHERE metric_date >= current_date - interval '90 days'
 ORDER BY metric_date;`,
       },
@@ -359,7 +359,7 @@ ORDER BY metric_date;`,
   round(avg(collection_rate_pct), 2) AS avg_collection_rate_pct,
   sum(paid_invoice_count) AS paid_invoices,
   sum(open_invoice_count) AS open_invoices
-FROM finance.monthly_revenue
+FROM fin.agg_revenue_monthly
 WHERE revenue_month >= date_trunc('month', current_date) - interval '12 months'
 GROUP BY 1
 ORDER BY 1;`,
@@ -385,7 +385,7 @@ ORDER BY 1;`,
     2
   ) AS budget_utilization_ratio,
   round(sum(ap_open_usd), 2) AS ap_open_usd
-FROM finance.finance_budget_vs_actual_monthly
+FROM fin.agg_budget_vs_actual_monthly
 WHERE budget_month >= date_trunc('month', current_date) - interval '6 months'
 GROUP BY 1
 ORDER BY 1 DESC;`,
@@ -411,7 +411,7 @@ ORDER BY 1 DESC;`,
   round(avg_stealth_session_pct_30d, 2) AS avg_stealth_session_pct_30d,
   api_keys_created_30d,
   active_api_keys_created_30d
-FROM ops.ops_kpis
+FROM ops.kpi_ops
 ORDER BY as_of_date DESC
 LIMIT 90;`,
       },

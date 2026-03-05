@@ -41,7 +41,7 @@ def resolve_path(path_value: str, project_root: Path) -> str:
     return str((project_root / path_value.lstrip("./")).resolve())
 
 
-def connect() -> tuple[duckdb.DuckDBPyConnection, str]:
+def connect() -> duckdb.DuckDBPyConnection:
     load_dotenv_if_present()
     project_root = Path(__file__).resolve().parent.parent
 
@@ -49,54 +49,23 @@ def connect() -> tuple[duckdb.DuckDBPyConnection, str]:
         "WAREHOUSE_DUCKDB_PATH",
         os.environ.get("MOTHERDUCK_PATH", "/tmp/browserbase_warehouse.duckdb"),
     )
-    analytics_path_raw = os.environ.get(
-        "ANALYTICS_DUCKDB_PATH",
-        "/tmp/browserbase_analytics.duckdb",
-    )
     motherduck_token = os.environ.get("MOTHERDUCK_TOKEN", "")
 
     warehouse_path = resolve_path(warehouse_path_raw, project_root)
-    analytics_path = resolve_path(analytics_path_raw, project_root)
 
     connect_kwargs: dict = {}
     if warehouse_path.startswith("md:") and motherduck_token:
         connect_kwargs["config"] = {"motherduck_token": motherduck_token}
 
-    try:
-        conn = duckdb.connect(warehouse_path, **connect_kwargs)
-    except duckdb.Error:
-        # Fallback to scratch DuckDB paths when MotherDuck is unavailable.
-        local_warehouse = "/tmp/browserbase_warehouse.duckdb"
-        local_analytics = "/tmp/browserbase_analytics.duckdb"
-        conn = duckdb.connect(local_warehouse)
-        try:
-            conn.execute(f"ATTACH '{local_analytics}' AS analytics")
-        except duckdb.Error:
-            pass
-        return conn, "analytics."
-
-    # If using local DuckDB with attached analytics DB, use analytics.<schema> relations.
-    relation_prefix = ""
-    if not warehouse_path.startswith("md:"):
-        try:
-            conn.execute(f"ATTACH '{analytics_path}' AS analytics")
-            relation_prefix = "analytics."
-        except duckdb.Error:
-            # Best effort if already attached.
-            relation_prefix = "analytics."
-
-    return conn, relation_prefix
+    conn = duckdb.connect(warehouse_path, **connect_kwargs)
+    return conn
 
 
-def ensure_action_log_table(conn: duckdb.DuckDBPyConnection, prefix: str) -> None:
+def ensure_action_log_table(conn: duckdb.DuckDBPyConnection) -> None:
+    conn.execute("CREATE SCHEMA IF NOT EXISTS gtm")
     conn.execute(
-        f"""
-        CREATE SCHEMA IF NOT EXISTS {prefix}growth
         """
-    )
-    conn.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS {prefix}growth.action_log (
+        CREATE TABLE IF NOT EXISTS gtm.action_log (
             action_id TEXT PRIMARY KEY,
             signal_id TEXT,
             task_id TEXT,
@@ -126,7 +95,7 @@ def ensure_action_log_table(conn: duckdb.DuckDBPyConnection, prefix: str) -> Non
     for column_name, column_type in columns_to_add.items():
         conn.execute(
             f"""
-            ALTER TABLE {prefix}growth.action_log
+            ALTER TABLE gtm.action_log
             ADD COLUMN IF NOT EXISTS {column_name} {column_type}
             """
         )
@@ -145,12 +114,12 @@ def build_outcome_label(priority: str, reason_code: str) -> str:
 
 
 def run_worker(limit: int, dry_run: bool) -> int:
-    conn, prefix = connect()
+    conn = connect()
     try:
-        ensure_action_log_table(conn, prefix)
+        ensure_action_log_table(conn)
 
         queue_rows = conn.execute(
-            f"""
+            """
             SELECT
                 q.task_id,
                 q.signal_id,
@@ -159,8 +128,8 @@ def run_worker(limit: int, dry_run: bool) -> int:
                 q.priority,
                 q.reason_code,
                 q.signal_score
-            FROM {prefix}growth.growth_task_queue q
-            LEFT JOIN {prefix}growth.action_log a
+            FROM gtm.growth_task_queue q
+            LEFT JOIN gtm.action_log a
               ON a.task_id = q.task_id
              AND a.signal_id = q.signal_id
             WHERE a.task_id IS NULL
@@ -212,8 +181,8 @@ def run_worker(limit: int, dry_run: bool) -> int:
             return len(inserts)
 
         conn.executemany(
-            f"""
-            INSERT INTO {prefix}growth.action_log (
+            """
+            INSERT INTO gtm.action_log (
                 action_id,
                 signal_id,
                 task_id,

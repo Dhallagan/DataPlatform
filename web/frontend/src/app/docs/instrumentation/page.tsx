@@ -22,7 +22,7 @@ export default function InstrumentationPage() {
         <h2 className="text-base font-semibold text-content-primary">Identity and Event Standards</h2>
         <ul className="list-disc pl-5 text-sm text-content-secondary space-y-1">
           <li>Every event must include: <code className="font-mono">event_id</code>, <code className="font-mono">event_time</code>, <code className="font-mono">organization_id</code>, <code className="font-mono">user_id</code> (nullable), <code className="font-mono">session_id</code> (nullable).</li>
-          <li>Event names follow: <code className="font-mono">domain.object.action</code> (example: <code className="font-mono">growth.lead.created</code>).</li>
+          <li>Event names follow: <code className="font-mono">domain.object.action</code> (example: <code className="font-mono">gtm.lead.created</code>).</li>
           <li>All enums must be documented and validated in dbt accepted-values tests.</li>
         </ul>
       </section>
@@ -33,7 +33,7 @@ export default function InstrumentationPage() {
           Agent workflows run on typed contracts. Every actionable signal must map to a deterministic action interface.
         </p>
         <pre className="p-3 rounded bg-surface-primary border border-border text-xs overflow-auto text-content-secondary">{`{
-  "signal": "growth.trial_conversion_risk",
+  "signal": "gtm.trial_conversion_risk",
   "required_fields": ["organization_id", "signal_score", "recommended_channel"],
   "allowed_actions": ["send_first_reachout", "queue_11labs_call", "assign_sdr_followup"],
   "safety_policy": {

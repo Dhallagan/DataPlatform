@@ -103,8 +103,9 @@ This rebuilds:
 | `sessions` | Core entity | 1 row per session | Canonical session entity | `session_id`, `organization_id` |
 | `dim_organizations` | Dimension | 1 row per organization | Join-safe organization dimension | `organization_id` |
 | `dim_users` | Dimension | 1 row per user | Join-safe user dimension | `user_id`, `organization_id` |
-| `fct_runs` | Fact | 1 row per browser run | Canonical run fact | `run_id`, `organization_id`, `run_status` |
-| `fct_events` | Fact | 1 row per event | Canonical event fact | `event_id`, `run_id` |
+| `fct_browser_sessions` | Fact | 1 row per browser session | Canonical session fact (alias on `sessions.sql`) | `session_id`, `organization_id`, `status` |
+| `bridge_organization_activity` | Bridge | 1 row per organization | Organization session aggregates | `organization_id`, `total_sessions` |
+| `fct_events` | Fact | 1 row per event | Canonical event fact | `event_id`, `session_id` |
 | `fct_subscriptions` | Fact | 1 row per subscription state row | Canonical subscription fact | `subscription_id`, `organization_id`, `subscription_status` |
 | `dim_time` | Dimension | 1 row per day | Daily calendar dimension | `date_day`, `month_start` |
 | `dim_finance_departments` | Dimension | 1 row per department | Department metadata | `department_id`, `organization_id` |

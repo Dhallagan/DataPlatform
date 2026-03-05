@@ -19,67 +19,53 @@ clean-targets:
 # =============================================================================
 # Model Configuration
 # =============================================================================
-# Two databases:
-#   warehouse (default) — bronze + silver (plumbing)
-#   analytics           — division schemas (analyst-facing)
+# Strict medallion in one database:
+#   bronze_supabase  (raw replicated sources)
+#   silver           (staging views + core entities/facts/dims)
+#   gtm/pro/fin/eng/ops/core  (domain-scoped gold models)
 # =============================================================================
 models:
   browserbase_warehouse:
 
     # -------------------------------------------------------------------------
-    # STAGING — warehouse.silver (views)
+    # SILVER — canonical transformed layer
     # -------------------------------------------------------------------------
-    staging:
-      +schema: silver
-      +materialized: view
-      +tags: ['staging', 'silver']
+    020_silver:
+      +database: "{{ target.database }}"
+      +tags: ['silver']
+      staging:
+        +schema: silver
+        +materialized: view
+        +tags: ['staging', 'silver']
+
+      core:
+        +schema: core
+        +materialized: table
+        +tags: ['core']
 
     # -------------------------------------------------------------------------
-    # CORE — warehouse.silver (tables)
+    # GOLD — domain-scoped analyst-facing models
     # -------------------------------------------------------------------------
-    core:
-      +schema: silver
-      +materialized: table
-      +tags: ['core', 'silver']
-
-    # -------------------------------------------------------------------------
-    # ANALYTICS — domain schemas in analytics database
-    # -------------------------------------------------------------------------
-    growth:
-      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
-      +schema: growth
+    030_gold:
+      +database: "{{ target.database }}"
       +materialized: view
-      +tags: ['analytics', 'growth']
-
-    product:
-      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
-      +schema: product
-      +materialized: table
-      +tags: ['analytics', 'product']
-
-    finance:
-      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
-      +schema: finance
-      +materialized: view
-      +tags: ['analytics', 'finance']
-
-    eng:
-      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
-      +schema: eng
-      +materialized: view
-      +tags: ['analytics', 'eng']
-
-    ops:
-      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
-      +schema: ops
-      +materialized: view
-      +tags: ['analytics', 'ops']
-
-    core_metrics:
-      +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
-      +schema: core
-      +materialized: view
-      +tags: ['analytics', 'core']
+      +tags: ['gold']
+      compat_legacy:
+        +enabled: false
+      growth:
+        +schema: gtm
+      product:
+        +schema: pro
+        +materialized: table
+      finance:
+        +schema: fin
+      eng:
+        +schema: eng
+      ops:
+        +schema: ops
+      core_metrics:
+        +schema: core
+        +materialized: table
 
 # =============================================================================
 # Variables
@@ -90,7 +76,14 @@ vars:
 
 seeds:
   browserbase_warehouse:
-    +database: "{{ 'analytics' if target.name != 'motherduck' else target.database }}"
+    +database: "{{ target.database }}"
     +schema: core
+    core:
+      +database: "{{ target.database }}"
+      +schema: silver
+      dim_time_seed:
+        +quote_columns: false
     metadata:
+      +database: "{{ target.database }}"
+      +schema: core
       +quote_columns: false

@@ -151,7 +151,7 @@ export default function ProductActionsPage() {
             avg_proxy_adoption_pct_30d,
             avg_stealth_adoption_pct_30d,
             peak_unique_domains_visited_30d
-          FROM product.product_kpis
+          FROM pro.kpi_product
           ORDER BY as_of_date DESC
           LIMIT 1
         `),
@@ -165,7 +165,7 @@ export default function ProductActionsPage() {
             proxy_adoption_pct,
             stealth_adoption_pct,
             unique_domains_visited
-          FROM product.product_daily
+          FROM pro.agg_product_daily
           WHERE metric_date >= current_date - interval '29 days'
           ORDER BY metric_date DESC
         `),
@@ -187,7 +187,7 @@ export default function ProductActionsPage() {
             sum(chromium_sessions) AS chromium_sessions,
             sum(firefox_sessions) AS firefox_sessions,
             sum(webkit_sessions) AS webkit_sessions
-          FROM product.daily_sessions
+          FROM pro.agg_sessions_daily
           WHERE session_date >= current_date - interval '13 days'
           GROUP BY 1
           ORDER BY 1 DESC

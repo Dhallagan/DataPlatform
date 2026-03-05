@@ -26,25 +26,27 @@ Raw tables ingested from Supabase:
 - `api_keys`, `browser_sessions`, `invoices`, `organizations`, `plans`, `projects`
 - `session_events`, `subscriptions`, `usage_records`, `users`
 
-### Silver Layer (Cleaned/Staged + Core) — `silver`
-Canonical entities and semantic facts:
-- `organizations` — Organization entity
-- `users` — User entity
-- `sessions` — Browser session entity
+### Silver Layer (Cleaned/Staged) — `silver`
+Standardized staging models:
+- `stg_organizations`, `stg_users`, `stg_sessions`, and source-domain `stg_*` models
+
+### Core Layer (Canonical Dims/Facts) — `core`
 - `dim_organizations` — Organization dimension
 - `dim_users` — User dimension
-- `fct_runs` — Browser run facts
+- `fct_browser_sessions` — Browser session facts
+- `bridge_organization_activity` — Organization session aggregates
 - `fct_events` — Session event facts
 - `fct_subscriptions` — Subscription facts
+- `daily_kpis`, `metric_spine` — Cross-domain metrics
 
 ### Analytics Domain Schemas
 Team-facing aggregates and KPI models:
-- `core.daily_kpis`, `core.metric_spine`
-- `finance.mrr`, `finance.monthly_revenue`
-- `growth.growth_daily`, `growth.growth_kpis`, `growth.cohort_retention`, `growth.active_organizations`
-- `eng.engineering_daily`, `eng.engineering_kpis`
-- `ops.ops_daily`, `ops.ops_kpis`
-- `product.product_daily`, `product.product_kpis`
+- `fin.snap_mrr`, `fin.agg_revenue_monthly`, `fin.agg_budget_vs_actual_monthly`, `fin.agg_spend_monthly`
+- `gtm.agg_growth_daily`, `gtm.kpi_growth`, `gtm.agg_cohort_retention_weekly`, `gtm.agg_active_organizations`
+- `gtm.signal_trial_conversion_risk_daily`, `gtm.growth_task_queue`, `gtm.snap_pipeline_daily`
+- `eng.agg_engineering_daily`, `eng.kpi_engineering`
+- `ops.agg_ops_daily`, `ops.kpi_ops`
+- `pro.agg_product_daily`, `pro.kpi_product`
 
 ## SQL Dialect
 - This is **DuckDB** (via MotherDuck), not SQLite or Postgres.
@@ -64,17 +66,17 @@ Team-facing aggregates and KPI models:
 - Use `llm_context` when a user asks broad discovery questions across many objects.
 - Use `describe_table` to verify columns/types before query execution.
 - Use `list_metrics` for KPI/definition questions.
-- Start with `core`, `finance`, `growth`, `eng`, `ops`, or `product` tables for KPI questions.
-- Use `silver` tables for canonical entity/fact analysis.
+- Start with `core` tables for KPI questions. Use domain schemas (`fin`, `gtm`, `pro`, `eng`, `ops`) for team-specific models.
+- Use `silver` tables for staging/source normalization analysis.
 - Drop to `bronze_supabase` only when detailed raw source data is needed.
 - When users ask about data structure, use introspect_schema first.
 - If a query fails, explain why and suggest alternatives.
 - Be concise but thorough in explanations.
 
 ## Table-specific rules
-- For `finance.mrr`, use `as_of_date` as the time column.
-- Never reference a `date` column in `finance.mrr` (it does not exist).
-- Prefer these `finance.mrr` fields for MRR analysis:
+- For `fin.snap_mrr`, use `as_of_date` as the time column.
+- Never reference a `date` column in `fin.snap_mrr` (it does not exist).
+- Prefer these `fin.snap_mrr` fields for MRR analysis:
   `as_of_date`, `total_mrr_usd`, `starter_mrr_usd`, `pro_mrr_usd`,
   `enterprise_mrr_usd`, `total_paying_customers`, `starter_customers`,
   `pro_customers`, `enterprise_customers`, `arpu_usd`.

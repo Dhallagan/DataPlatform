@@ -15,9 +15,13 @@ BasedHoc is a self-service chat portal for ad-hoc reporting on BrowserBase opera
 
 ### Data Warehouse Schemas
 - **bronze_supabase**: Raw tables (api_keys, browser_sessions, invoices, organizations, plans, projects, session_events, subscriptions, usage_records, users)
-- **silver_core**: Cleaned dims/facts (dim_org, dim_user, core_sessions, fct_browser_run, fct_event, fct_subscription)
-- **gold_marts**: Pre-aggregated team fact tables (fct_daily_sessions, fct_monthly_revenue, fct_engineering_daily, fct_growth_daily, fct_ops_daily, fct_product_daily)
-- **gold_metrics**: KPI views (v_daily_kpis, v_mrr, v_cohort_retention, v_active_organizations, v_growth_kpis, v_engineering_kpis, v_ops_kpis, v_product_kpis)
+- **silver**: Staging views (stg_sessions, stg_organizations, stg_plans, stg_invoices, etc.)
+- **core**: Canonical entities and facts (organizations, sessions/fct_browser_sessions, dim_time, bridge_organization_activity, fct_events, daily_kpis, metric_spine)
+- **gtm**: Growth/GTM models (growth_task_queue, signal_trial_conversion_risk_daily, gtm_pipeline_snapshot, gtm_funnel_daily, active_organizations, cohort_retention)
+- **fin**: Finance models (mrr, monthly_revenue, finance_budget_vs_actual_monthly, ramp_spend_monthly)
+- **pro**: Product models (product_daily, product_kpis, daily_sessions)
+- **eng**: Engineering models (engineering_daily, engineering_kpis)
+- **ops**: Operations models (ops_daily, ops_kpis)
 
 The LangChain agent has two tools:
 - `introspect_schema`: Discover available tables and columns across all warehouse schemas

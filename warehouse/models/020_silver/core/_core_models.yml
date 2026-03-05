@@ -1,0 +1,369 @@
+version: 2
+
+models:
+  - name: organizations
+    description: Pure dimension — organization attributes, subscription, and plan context.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'suspended', 'churned']
+      - name: current_plan_name
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['free', 'starter', 'pro', 'enterprise']
+                quote: true
+              config:
+                where: "current_plan_name is not null"
+
+  - name: bridge_organization_activity
+    description: Session activity aggregates per organization, split from dim_organizations.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('organizations')
+                field: organization_id
+
+  - name: users
+    description: Canonical user entity with organization context.
+    columns:
+      - name: user_id
+        tests:
+          - not_null
+          - unique
+      - name: primary_organization_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('organizations')
+                field: organization_id
+              config:
+                where: "primary_organization_id is not null"
+
+  - name: sessions
+    description: Canonical session entity with derived metrics.
+    columns:
+      - name: session_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('organizations')
+                field: organization_id
+      - name: session_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'running', 'completed', 'failed', 'timeout']
+
+  - name: fct_events
+    description: Canonical event fact table.
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+          - unique
+      - name: run_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('sessions')
+                field: session_id
+
+  - name: fct_subscriptions
+    description: Canonical subscription fact table.
+    columns:
+      - name: subscription_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('organizations')
+                field: organization_id
+      - name: subscription_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['trialing', 'active', 'past_due', 'canceled']
+
+  - name: dim_time
+    description: Canonical daily time dimension for fixed calendar week/month analysis and rolling windows.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: Canonical date key at daily grain.
+        granularity: day
+        tests:
+          - not_null
+          - unique
+      - name: date_id
+        description: Integer date key in YYYYMMDD format.
+        tests:
+          - not_null
+          - unique
+      - name: fixed_calendar_week_start
+        description: Start date of the fixed calendar week containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_week_end
+        description: End date of the fixed calendar week containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_week_id
+        description: ISO week key in YYYYWW format.
+        tests:
+          - not_null
+      - name: fixed_calendar_month_start
+        description: Start date of the fixed calendar month containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_month_end
+        description: End date of the fixed calendar month containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_month_id
+        description: Calendar month key in YYYYMM format.
+        tests:
+          - not_null
+      - name: month_start
+        description: Month start date (same value as fixed_calendar_month_start).
+        tests:
+          - not_null
+      - name: quarter_start
+        description: Quarter start date.
+        tests:
+          - not_null
+      - name: year_start
+        description: Year start date.
+        tests:
+          - not_null
+      - name: year_number
+        description: Calendar year number.
+        tests:
+          - not_null
+      - name: month_number
+        description: Calendar month number (1-12).
+        tests:
+          - not_null
+      - name: day_of_month
+        description: Day of month number (1-31).
+        tests:
+          - not_null
+      - name: day_of_week
+        description: Day of week number (0=Sunday, 6=Saturday in DuckDB).
+        tests:
+          - not_null
+      - name: is_weekend
+        description: True when date_day falls on Saturday or Sunday.
+        tests:
+          - not_null
+      - name: rolling_7d_start
+        description: Inclusive trailing 7-day window start anchored to date_day.
+        tests:
+          - not_null
+      - name: rolling_7d_end
+        description: Inclusive trailing 7-day window end anchored to date_day.
+        tests:
+          - not_null
+      - name: rolling_28d_start
+        description: Inclusive trailing 28-day window start anchored to date_day.
+        tests:
+          - not_null
+      - name: rolling_28d_end
+        description: Inclusive trailing 28-day window end anchored to date_day.
+        tests:
+          - not_null
+      - name: _loaded_at
+        description: Model load timestamp.
+        tests:
+          - not_null
+
+  - name: dim_finance_departments
+    description: Finance department dimension with budget and ownership attributes.
+    columns:
+      - name: department_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+      - name: department_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'archived']
+
+  - name: dim_finance_vendors
+    description: Finance vendor dimension with risk and payment terms.
+    columns:
+      - name: vendor_id
+        tests:
+          - not_null
+          - unique
+      - name: vendor_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive', 'blocked']
+
+  - name: dim_finance_cards
+    description: Finance card dimension including holder and controls.
+    columns:
+      - name: card_id
+        tests:
+          - not_null
+          - unique
+      - name: card_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'frozen', 'canceled']
+
+  - name: fct_finance_transactions
+    description: Card transaction fact at one row per transaction.
+    columns:
+      - name: transaction_id
+        tests:
+          - not_null
+          - unique
+      - name: transaction_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'posted', 'cleared', 'declined', 'reversed']
+      - name: transaction_month
+        tests:
+          - not_null
+
+  - name: fct_finance_reimbursements
+    description: Reimbursement fact at one row per request.
+    columns:
+      - name: reimbursement_id
+        tests:
+          - not_null
+          - unique
+      - name: reimbursement_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['submitted', 'approved', 'rejected', 'paid']
+      - name: submitted_month
+        tests:
+          - not_null
+
+  - name: fct_finance_bills
+    description: Accounts payable bill fact at one row per bill.
+    columns:
+      - name: bill_id
+        tests:
+          - not_null
+          - unique
+      - name: bill_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['submitted', 'approved', 'scheduled', 'paid', 'void']
+      - name: bill_month
+        tests:
+          - not_null
+
+  - name: fct_finance_bill_payments
+    description: Bill payment fact at one row per payment record.
+    columns:
+      - name: bill_payment_id
+        tests:
+          - not_null
+          - unique
+      - name: payment_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['scheduled', 'processing', 'paid', 'failed', 'canceled']
+      - name: paid_month
+        tests:
+          - not_null
+
+  - name: fct_finance_bill_adjustments
+    description: Bill adjustment fact table at one row per adjustment record.
+    columns:
+      - name: bill_adjustment_id
+        tests:
+          - not_null
+          - unique
+      - name: adjustment_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['credit_memo', 'write_off', 'reversal', 'other']
+      - name: bill_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_finance_bills')
+                field: bill_id
+      - name: direction
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['decrease', 'increase']
+      - name: adjusted_month
+        tests:
+          - not_null
+
+  - name: fct_finance_payment_reversals
+    description: Payment reversal fact table at one row per reversal.
+    columns:
+      - name: payment_reversal_id
+        tests:
+          - not_null
+          - unique
+      - name: reversal_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'completed', 'failed', 'canceled']
+      - name: bill_payment_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_finance_bill_payments')
+                field: bill_payment_id
+      - name: reversed_month
+        tests:
+          - not_null

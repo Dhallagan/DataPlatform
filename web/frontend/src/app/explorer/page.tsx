@@ -930,7 +930,7 @@ export default function ExplorerPage() {
         businessObject: 'Trial Conversion Risk',
         source: 'public.organizations, public.browser_sessions',
         bronze: pickTable(allTables, ['bronze_supabase', 'organizations']),
-        silver: pickTable(allTables, ['core', 'fct_runs']),
+        silver: pickTable(allTables, ['core', 'fct_browser_sessions']),
         analytics: pickTable(allTables, ['growth', 'growth_daily']),
         metric: pickTable(allTables, ['growth', 'growth_kpis']),
         signal: pickTable(allTables, ['signal', 'trial', 'risk']),

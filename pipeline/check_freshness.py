@@ -6,8 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,9 +23,9 @@ class SchemaThreshold:
 DEFAULT_THRESHOLDS = [
     SchemaThreshold("bronze_supabase", 24.0),
     SchemaThreshold("silver", 24.0),
-    SchemaThreshold("growth", 48.0),
-    SchemaThreshold("product", 48.0),
-    SchemaThreshold("finance", 48.0),
+    SchemaThreshold("gtm", 48.0),
+    SchemaThreshold("pro", 48.0),
+    SchemaThreshold("fin", 48.0),
     SchemaThreshold("eng", 48.0),
     SchemaThreshold("ops", 48.0),
     SchemaThreshold("core", 48.0),
@@ -37,7 +35,7 @@ DEFAULT_TABLE_THRESHOLDS = {
     "core.daily_kpis": 24.0,
     "core.metric_spine": 24.0,
     "core.metric_registry": 24.0,
-    "finance.mrr": 24.0,
+    "fin.mrr": 24.0,
 }
 
 
@@ -99,58 +97,23 @@ def freshness_column_expr() -> str:
     """
 
 
-def connect() -> tuple[duckdb.DuckDBPyConnection, str]:
+def connect() -> duckdb.DuckDBPyConnection:
     load_dotenv_if_present()
     project_root = Path(__file__).resolve().parent.parent
     warehouse_raw = os.environ.get(
         "WAREHOUSE_DUCKDB_PATH",
         os.environ.get("MOTHERDUCK_PATH", "/tmp/browserbase_warehouse.duckdb"),
     )
-    analytics_raw = os.environ.get(
-        "ANALYTICS_DUCKDB_PATH",
-        "/tmp/browserbase_analytics.duckdb",
-    )
     token = os.environ.get("MOTHERDUCK_TOKEN", "")
 
     warehouse_path = resolve_path(warehouse_raw, project_root)
-    analytics_path = resolve_path(analytics_raw, project_root)
 
     kwargs: dict = {}
     if warehouse_path.startswith("md:") and token:
         kwargs["config"] = {"motherduck_token": token}
-    try:
-        conn = duckdb.connect(warehouse_path, read_only=True, **kwargs)
-    except duckdb.Error:
-        # Fallback to scratch DuckDB paths when MotherDuck is unavailable.
-        local_warehouse = "/tmp/browserbase_warehouse.duckdb"
-        local_analytics = "/tmp/browserbase_analytics.duckdb"
-        try:
-            conn = duckdb.connect(local_warehouse, read_only=True)
-        except duckdb.Error:
-            # If locked, copy DB files to a temp dir for read-only freshness checks.
-            temp_dir = Path(tempfile.mkdtemp(prefix="bb_freshness_"))
-            temp_warehouse = temp_dir / "warehouse.duckdb"
-            temp_analytics = temp_dir / "analytics.duckdb"
-            shutil.copy2(local_warehouse, temp_warehouse)
-            if Path(local_analytics).exists():
-                shutil.copy2(local_analytics, temp_analytics)
-            conn = duckdb.connect(str(temp_warehouse), read_only=True)
-            local_analytics = str(temp_analytics)
-        try:
-            conn.execute(f"ATTACH '{local_analytics}' AS analytics")
-        except duckdb.Error:
-            pass
-        return conn, "analytics."
+    conn = duckdb.connect(warehouse_path, read_only=True, **kwargs)
 
-    relation_prefix = ""
-    if not warehouse_path.startswith("md:"):
-        try:
-            conn.execute(f"ATTACH '{analytics_path}' AS analytics")
-            relation_prefix = "analytics."
-        except duckdb.Error:
-            relation_prefix = "analytics."
-
-    return conn, relation_prefix
+    return conn
 
 
 def check_freshness() -> tuple[bool, list[dict]]:
@@ -159,7 +122,7 @@ def check_freshness() -> tuple[bool, list[dict]]:
     threshold_map = {item.name: item.max_age_hours for item in thresholds}
     schema_filter = ", ".join(f"'{name}'" for name in threshold_map)
 
-    conn, relation_prefix = connect()
+    conn = connect()
     now = datetime.now(timezone.utc)
     empty_is_stale = os.environ.get("FRESHNESS_EMPTY_IS_STALE", "false").lower() == "true"
     rows_out: list[dict] = []
@@ -185,13 +148,9 @@ def check_freshness() -> tuple[bool, list[dict]]:
             """
         ).fetchall()
 
-        analytics_schemas = {"growth", "product", "finance", "eng", "ops", "core"}
         for schema_name, table_name, freshness_col in targets:
             table_key = f"{schema_name}.{table_name}"
-            if relation_prefix and schema_name in analytics_schemas:
-                relation = f'{relation_prefix}"{schema_name}"."{table_name}"'
-            else:
-                relation = f'"{schema_name}"."{table_name}"'
+            relation = f'"{schema_name}"."{table_name}"'
             result = conn.execute(
                 f"""
                 SELECT

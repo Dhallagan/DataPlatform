@@ -111,46 +111,57 @@ BrowserBase/
 - `stg_gtm_opportunities`
 - `stg_gtm_activities`
 
-### Silver core models
+### Core models (schema: `core`)
 
-- `organizations`
-- `users`
-- `sessions`
-- `dim_organizations`
-- `dim_users`
-- `fct_runs`
-- `fct_events`
-- `fct_subscriptions`
+- `organizations` — canonical org dimension
+- `users` — user dimension
+- `fct_browser_sessions` (file: `sessions.sql`) — canonical session fact
+- `dim_organizations` — enriched org dimension
+- `dim_users` — enriched user dimension
+- `dim_time` — date spine
+- `bridge_organization_activity` — org session aggregates
+- `fct_events` — session event fact
+- `fct_subscriptions` — subscription fact
+- `metric_spine` — org×date metric scaffold
+- `daily_kpis` — executive KPI rollup
+- `terminal_*` — terminal fact views (exec, gtm, product, customer, finance)
 
-### Gold marts models
+### GTM models (schema: `gtm`)
 
-- `daily_sessions`
-- `monthly_revenue`
-- `growth_daily`
-- `product_daily`
-- `engineering_daily`
-- `ops_daily`
+- `agg_growth_daily` — daily growth rollup
+- `agg_active_organizations` — 30-day active orgs
+- `agg_cohort_retention_weekly` — cohort retention
+- `agg_funnel_daily` — GTM funnel metrics
+- `snap_pipeline_daily` — pipeline snapshot
+- `kpi_growth` — growth KPI snapshot
+- `cfg_signal_thresholds` — signal routing config
+- `signal_trial_conversion_risk_daily` — trial risk signals
+- `growth_task_queue` — growth action queue
+- `action_log` — workflow execution log
 
-### Gold metrics models/views
+### Finance models (schema: `fin`)
 
-- `metric_spine`
-- `mrr`
-- `active_organizations`
-- `daily_kpis`
-- `cohort_retention`
-- `growth_kpis`
-- `product_kpis`
-- `engineering_kpis`
-- `ops_kpis`
+- `snap_mrr` — MRR snapshot
+- `agg_revenue_monthly` — monthly revenue by org
+- `agg_budget_vs_actual_monthly` — budget vs spend
+- `agg_spend_monthly` — monthly spend rollup
+- `agg_vendor_spend_monthly` — vendor-level spend
 
-### Growth workflow and GTM models
+### Product models (schema: `pro`)
 
-- `gtm_funnel_daily`
-- `gtm_pipeline_snapshot`
-- `signal_thresholds`
-- `signal_trial_conversion_risk_daily`
-- `growth_task_queue`
-- `action_log`
+- `agg_product_daily` — daily product metrics
+- `agg_sessions_daily` — session rollup
+- `kpi_product` — product KPI snapshot
+
+### Engineering models (schema: `eng`)
+
+- `agg_engineering_daily` — reliability metrics
+- `kpi_engineering` — engineering KPI snapshot
+
+### Operations models (schema: `ops`)
+
+- `agg_ops_daily` — ops metrics
+- `kpi_ops` — ops KPI snapshot
 
 ## 6) Environment Variables
 
@@ -307,7 +318,7 @@ python3 pipeline/query_warehouse.py
 
 Quality coverage includes:
 
-- Source-level constraints in `warehouse/models/staging/_sources.yml`
+- Source-level constraints in `warehouse/models/010_bronze/_sources.yml`
 - Model-level tests in `warehouse/models/*/*.yml`
 - Additional SQL tests in `warehouse/tests/`
 
