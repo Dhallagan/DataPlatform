@@ -4,14 +4,13 @@ This repo uses a strict medallion layout in one database:
 
 - `bronze_supabase`: raw source replicas
 - `silver`: staging views (`stg_*`)
-- `core`: canonical entities, facts, dims, and cross-domain metrics
+- `core`: canonical entities (dims, facts, bridges) **and** cross-domain metrics/catalog
 - Domain-scoped gold schemas:
   - `gtm`: growth/go-to-market models
   - `pro`: product analytics models
   - `fin`: finance models
   - `eng`: engineering models
   - `ops`: operations models
-  - `core`: cross-domain metrics and catalog
 
 ## Prefix Rules
 

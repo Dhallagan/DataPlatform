@@ -187,7 +187,7 @@ This rebuilds:
 
 ## Notes
 
-- Naming convention migration is in progress (see `CLAUDE.md`). Existing tables like `growth_daily` and `growth_kpis` remain active until compatibility views and rename rollout are complete.
+- All models use their canonical physical aliases (e.g., `agg_growth_daily`, `kpi_growth`). Legacy unprefixed names have been retired.
 - For LLM/agent discovery use:
   - `GET /llm.txt` for policy/contract
   - `GET /api/metadata/llm-context` for compact schema + metric context
