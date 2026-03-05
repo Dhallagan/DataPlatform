@@ -1,4 +1,4 @@
-{{ config(alias='terminal_gtm_daily') }}
+{{ config(alias='gtm_daily', schema='term') }}
 
 -- =============================================================================
 -- FACT VIEW: GTM Terminal Daily

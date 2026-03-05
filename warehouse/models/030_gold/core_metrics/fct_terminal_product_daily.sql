@@ -1,4 +1,4 @@
-{{ config(alias='terminal_product_daily') }}
+{{ config(alias='product_daily', schema='term') }}
 
 -- =============================================================================
 -- FACT VIEW: Product Terminal Daily

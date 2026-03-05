@@ -1,4 +1,4 @@
-{{ config(alias='terminal_customer_daily') }}
+{{ config(alias='customer_daily', schema='term') }}
 
 -- =============================================================================
 -- FACT VIEW: Customer Terminal Daily

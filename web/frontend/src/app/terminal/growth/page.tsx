@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { Badge, Button, Card, DataTable, EmptyState, LoadingState, StatTile } from '@/components/ui';
 import TerminalShell from '@/components/terminal/TerminalShell';
 import OrganizationDrillPanel from '@/components/terminal/OrganizationDrillPanel';
+import TerminalSection, { TerminalDataStatus } from '@/components/terminal/TerminalSection';
 import { num, pct, runWarehouseQuerySafe, usd } from '@/lib/warehouse';
 
 interface TaskRow {
@@ -363,6 +364,8 @@ export default function GrowthTerminalPage() {
   const leadsDelta = latestFunnel && previousFunnel ? latestFunnel.leads_created - previousFunnel.leads_created : 0;
   const spendPerLead = latestEconomics && latestFunnel && latestFunnel.leads_created > 0 ? latestEconomics.campaign_spend_usd / latestFunnel.leads_created : null;
   const hasEconomicModelData = economics.some((row) => row.cac_usd != null || row.ltv_proxy_usd != null || row.pipeline_roas != null);
+  const latestFunnelDate = latestFunnel?.metric_date ? new Date(latestFunnel.metric_date).toLocaleDateString() : 'n/a';
+  const coverageLabel = `${tasks.length} queue tasks · ${channelEfficiency.length} channels · ${economics.length} monthly rows`;
 
   if (loading) {
     return (
@@ -387,6 +390,12 @@ export default function GrowthTerminalPage() {
           <OrganizationDrillPanel organizationId={selectedOrganizationId} onClose={() => setSelectedOrganizationId(null)} />
         ) : null}
 
+        <TerminalDataStatus
+          freshnessLabel={`Latest funnel date ${latestFunnelDate}`}
+          coverageLabel={coverageLabel}
+          qualityLabel={hasEconomicModelData ? 'Modeled economics available' : 'Fallback economics active'}
+        />
+
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-8">
           <StatTile
             label="Leads (Latest)"
@@ -404,9 +413,8 @@ export default function GrowthTerminalPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-          <Card variant="elevated" className="p-4 xl:col-span-2">
+          <TerminalSection title="Full Funnel Performance (14d)" subtitle="Daily lead-to-opportunity conversion with close rate context." command="GRO FUNNEL" className="xl:col-span-2">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-content-primary">Full Funnel Performance (14d)</h2>
               <div className="flex flex-wrap items-center gap-1">
                 <Badge variant="accent">Lead to Qual {leadToQualifiedPct.toFixed(1)}%</Badge>
                 <Badge variant="neutral">Qual to Conv {qualifiedToConvertedPct.toFixed(1)}%</Badge>
@@ -425,11 +433,10 @@ export default function GrowthTerminalPage() {
               rows={funnel}
               emptyLabel="No funnel rows"
             />
-          </Card>
+          </TerminalSection>
 
-          <Card variant="elevated" className="p-4">
+          <TerminalSection title="Acquisition Economics" subtitle="Current operating efficiency and monetization yield." command="GRO CAC">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-content-primary">Acquisition Economics</h2>
               {!hasEconomicModelData ? <Badge variant="warning">Using fallback data</Badge> : null}
             </div>
             <div className="space-y-2">
@@ -454,7 +461,7 @@ export default function GrowthTerminalPage() {
                 <p className="mt-1 text-xl font-semibold text-content-primary">{metricValue(latestEconomics ? usd(latestEconomics.realized_revenue_usd) : null)}</p>
               </div>
             </div>
-          </Card>
+          </TerminalSection>
         </section>
 
         <section className="grid grid-cols-1 gap-3 xl:grid-cols-2">

@@ -1,0 +1,135 @@
+{
+  "version": "1.0.0",
+  "tokens": {
+    "source": "web/frontend/tailwind.config.js",
+    "forbidden": ["hex", "rgb", "hsl"]
+  },
+  "components": [
+    {
+      "name": "AppShell",
+      "path": "src/components/ui/AppShell.tsx",
+      "category": "layout",
+      "status": "ready"
+    },
+    {
+      "name": "SidebarNav",
+      "path": "src/components/ui/SidebarNav.tsx",
+      "category": "layout",
+      "status": "ready"
+    },
+    {
+      "name": "PageHeader",
+      "path": "src/components/ui/PageHeader.tsx",
+      "category": "layout",
+      "status": "ready"
+    },
+    {
+      "name": "Card",
+      "path": "src/components/ui/Card.tsx",
+      "category": "display",
+      "status": "ready"
+    },
+    {
+      "name": "Button",
+      "path": "src/components/ui/Button.tsx",
+      "category": "actions",
+      "status": "ready"
+    },
+    {
+      "name": "Input",
+      "path": "src/components/ui/Input.tsx",
+      "category": "inputs",
+      "status": "ready"
+    },
+    {
+      "name": "Select",
+      "path": "src/components/ui/Select.tsx",
+      "category": "inputs",
+      "status": "ready"
+    },
+    {
+      "name": "Badge",
+      "path": "src/components/ui/Badge.tsx",
+      "category": "display",
+      "status": "ready"
+    },
+    {
+      "name": "Tabs",
+      "path": "src/components/ui/Tabs.tsx",
+      "category": "navigation",
+      "status": "ready"
+    },
+    {
+      "name": "DataTable",
+      "path": "src/components/ui/DataTable.tsx",
+      "category": "data",
+      "status": "ready"
+    },
+    {
+      "name": "StatTile",
+      "path": "src/components/ui/StatTile.tsx",
+      "category": "data",
+      "status": "ready"
+    },
+    {
+      "name": "EmptyState",
+      "path": "src/components/ui/States.tsx",
+      "category": "states",
+      "status": "ready"
+    },
+    {
+      "name": "LoadingState",
+      "path": "src/components/ui/States.tsx",
+      "category": "states",
+      "status": "ready"
+    },
+    {
+      "name": "ErrorState",
+      "path": "src/components/ui/States.tsx",
+      "category": "states",
+      "status": "ready"
+    },
+    {
+      "name": "Drawer",
+      "path": "src/components/ui/Drawer.tsx",
+      "category": "overlay",
+      "status": "ready"
+    },
+    {
+      "name": "Modal",
+      "path": "src/components/ui/Modal.tsx",
+      "category": "overlay",
+      "status": "ready"
+    },
+    {
+      "name": "AIAnswerBlock",
+      "path": "src/components/ui/AIAnswerBlock.tsx",
+      "category": "ai",
+      "status": "ready"
+    },
+    {
+      "name": "DocCompletenessMeter",
+      "path": "src/components/ui/DocCompletenessMeter.tsx",
+      "category": "governance",
+      "status": "ready"
+    },
+    {
+      "name": "OwnershipPill",
+      "path": "src/components/ui/OwnershipPill.tsx",
+      "category": "governance",
+      "status": "ready"
+    },
+    {
+      "name": "LineageNodeCard",
+      "path": "src/components/ui/Lineage.tsx",
+      "category": "lineage",
+      "status": "ready"
+    },
+    {
+      "name": "LineageEdgeLegend",
+      "path": "src/components/ui/Lineage.tsx",
+      "category": "lineage",
+      "status": "ready"
+    }
+  ]
+}

@@ -22,9 +22,22 @@ QUERY_AUDIT_LOG_PATH = Path(os.getenv("QUERY_AUDIT_LOG_PATH", "/tmp/browserbase_
 # Current dbt layout:
 # - bronze_supabase (raw replication)
 # - silver (staging models)
-# - core (canonical dimensions + facts + semantic tables)
-# - mart (domain marts)
-RELEVANT_SCHEMAS = ["bronze_supabase", "silver", "core", "mart"]
+# - core (canonical dimensions + semantic tables)
+# - gtm/pro/fin/eng/ops (domain marts)
+# - term (terminal-serving marts)
+# Keep `mart` for legacy compatibility.
+RELEVANT_SCHEMAS = [
+    "bronze_supabase",
+    "silver",
+    "core",
+    "gtm",
+    "pro",
+    "fin",
+    "eng",
+    "ops",
+    "term",
+    "mart",
+]
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:

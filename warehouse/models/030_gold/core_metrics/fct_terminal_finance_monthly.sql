@@ -1,4 +1,4 @@
-{{ config(alias='terminal_finance_monthly') }}
+{{ config(alias='finance_monthly', schema='term') }}
 
 -- =============================================================================
 -- FACT VIEW: Finance Terminal Monthly

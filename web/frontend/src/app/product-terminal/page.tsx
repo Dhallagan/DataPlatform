@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import {
   Badge,
-  Card,
   DataTable,
   EmptyState,
   LoadingState,
   StatTile,
 } from '@/components/ui';
 import TerminalShell from '@/components/terminal/TerminalShell';
+import TerminalSection, { TerminalDataStatus } from '@/components/terminal/TerminalSection';
 import { num, pct, runWarehouseQuery, runWarehouseQuerySafe } from '@/lib/warehouse';
 
 interface ProductKpiSnapshot {
@@ -240,6 +240,12 @@ export default function ProductTerminalPage() {
   return (
     <TerminalShell active="product" title="Product Lead Terminal" subtitle="Reliability, session quality, and feature adoption in one surface.">
       <div className="space-y-4">
+        <TerminalDataStatus
+          freshnessLabel={`Latest product date ${dailyRows[0]?.metric_date || 'n/a'}`}
+          coverageLabel={`${dailyRows.length} product rows · ${opsRows.length} ops rows · ${failureQueue.length} failure clusters`}
+          qualityLabel={failureQueue.length > 0 ? 'Failure clusters ranked by impact' : 'Low failure volume in lookback'}
+        />
+
         <div className="flex justify-end">
           <Badge variant="accent">Product + Ops</Badge>
         </div>
@@ -258,9 +264,8 @@ export default function ProductTerminalPage() {
           <StatTile label="Run Quality Delta" value={delta(kpi.success_rate_7d, kpi.success_rate_prev_7d)} trend={kpi.success_rate_7d >= kpi.success_rate_prev_7d ? 'up' : 'down'} />
         </section>
 
-        <Card variant="elevated" className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-content-primary">What Changed (7d vs prior 7d)</h2>
+        <TerminalSection title="What Changed (7d vs prior 7d)" subtitle="Week-over-week deltas that should drive action ownership." command="PROD DELTA">
+          <div className="mb-3 flex items-center justify-end">
             <Badge variant="warning">Action Queue Driver</Badge>
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -281,11 +286,10 @@ export default function ProductTerminalPage() {
               <p className="mt-1 text-sm font-semibold text-content-primary">{delta(kpi.avg_duration_7d, kpi.avg_duration_prev_7d)}s</p>
             </div>
           </div>
-        </Card>
+        </TerminalSection>
 
-        <Card variant="elevated" className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-content-primary">Failure Intelligence Queue (14d)</h2>
+        <TerminalSection title="Failure Intelligence Queue (14d)" subtitle="Prioritized failure groups by blast radius and run impact." command="PROD FAILQ">
+          <div className="mb-3 flex items-center justify-end">
             <Badge variant="warning">Ranked by Impact Score</Badge>
           </div>
           <DataTable<FailureQueueRow>
@@ -301,10 +305,9 @@ export default function ProductTerminalPage() {
             rows={failureQueue}
             emptyLabel="No failed-run clusters in the last 14 days."
           />
-        </Card>
+        </TerminalSection>
 
-        <Card variant="elevated" className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-content-primary">Product Daily Signals</h2>
+        <TerminalSection title="Product Daily Signals" subtitle="Recent product performance trend and adoption indicators." command="PROD DAILY">
           <DataTable<DailyRow>
             columns={[
               { key: 'metric_date', header: 'Date' },
@@ -317,10 +320,9 @@ export default function ProductTerminalPage() {
             rows={dailyRows}
             emptyLabel="No product_daily rows available."
           />
-        </Card>
+        </TerminalSection>
 
-        <Card variant="elevated" className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-content-primary">Ops Throughput Signals</h2>
+        <TerminalSection title="Ops Throughput Signals" subtitle="Underlying infrastructure throughput and proxy usage signals." command="PROD OPS">
           <DataTable<OpsRow>
             columns={[
               { key: 'metric_date', header: 'Date' },
@@ -332,7 +334,7 @@ export default function ProductTerminalPage() {
             rows={opsRows}
             emptyLabel="No ops_daily rows available."
           />
-        </Card>
+        </TerminalSection>
       </div>
     </TerminalShell>
   );

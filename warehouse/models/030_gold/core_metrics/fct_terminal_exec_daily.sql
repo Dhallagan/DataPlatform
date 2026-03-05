@@ -1,4 +1,4 @@
-{{ config(alias='terminal_exec_daily') }}
+{{ config(alias='exec_daily', schema='term') }}
 
 -- =============================================================================
 -- FACT VIEW: Executive Terminal Daily

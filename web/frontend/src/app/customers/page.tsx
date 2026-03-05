@@ -3,16 +3,14 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
-  AppShell,
   Badge,
   Card,
   DataTable,
   EmptyState,
   LoadingState,
-  PageHeader,
-  SidebarNav,
 } from '@/components/ui';
 import { num, pct, runWarehouseQuerySafe, usd } from '@/lib/warehouse';
+import TerminalShell from '@/components/terminal/TerminalShell';
 
 interface CustomerRow {
   organization_id: string;
@@ -86,38 +84,29 @@ export default function CustomersPage() {
     load();
   }, []);
 
-  const navItems = [
-    { href: '/exec', label: 'Executive', active: false },
-    { href: '/gtm-terminal', label: 'GTM Terminal', active: false },
-    { href: '/product-terminal', label: 'Product', active: false },
-    { href: '/ops-brief', label: 'Ops Brief', active: false },
-    { href: '/metrics-catalog', label: 'Metrics Catalog', active: false },
-  ];
-
   if (loading) {
     return (
-      <AppShell sidebar={<SidebarNav title="Role Views" items={navItems} />}>
+      <TerminalShell active="executive" title="Customer Terminal" subtitle="Account-level revenue, reliability, and risk drilldown surface.">
         <LoadingState title="Loading customers" description="Building customer-equity table from finance and risk datasets." />
-      </AppShell>
+      </TerminalShell>
     );
   }
 
   if (error) {
     return (
-      <AppShell sidebar={<SidebarNav title="Role Views" items={navItems} />}>
+      <TerminalShell active="executive" title="Customer Terminal" subtitle="Account-level revenue, reliability, and risk drilldown surface.">
         <EmptyState title="Customers unavailable" description={error} actionLabel="Retry" onAction={() => window.location.reload()} />
-      </AppShell>
+      </TerminalShell>
     );
   }
 
   return (
-    <AppShell sidebar={<SidebarNav title="Role Views" items={navItems} />}>
+    <TerminalShell active="executive" title="Customer Terminal" subtitle="Account-level revenue, reliability, and risk drilldown surface.">
       <div className="space-y-4">
-        <PageHeader
-          title="Customers"
-          subtitle="Top customer equities by realized revenue with sessions and reliability signals."
-          actions={<Badge variant="accent">Top {rows.length}</Badge>}
-        />
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-content-primary">Top customer equities by realized revenue with reliability context.</h2>
+          <Badge variant="accent">Top {rows.length}</Badge>
+        </div>
 
         <Card variant="elevated" className="p-4">
           <DataTable<CustomerRow>
@@ -144,6 +133,6 @@ export default function CustomersPage() {
           />
         </Card>
       </div>
-    </AppShell>
+    </TerminalShell>
   );
 }

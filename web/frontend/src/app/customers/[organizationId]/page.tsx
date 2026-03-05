@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AppShell, Badge, Card, DataTable, EmptyState, LoadingState, PageHeader, SidebarNav, Tabs } from '@/components/ui';
+import { Badge, Card, DataTable, EmptyState, LoadingState, Tabs } from '@/components/ui';
 import { num, pct, runWarehouseQuery, runWarehouseQuerySafe, usd } from '@/lib/warehouse';
+import TerminalShell from '@/components/terminal/TerminalShell';
 
 type TabKey = 'financials' | 'sessions' | 'reliability';
 
@@ -130,46 +131,32 @@ export default function CustomerDetailPage({ params }: { params: { organizationI
     return organizationId;
   }, [latestRevenue, organizationId]);
 
-  const navItems = [
-    { href: '/exec', label: 'Executive', active: false },
-    { href: '/gtm-terminal', label: 'GTM Terminal', active: false },
-    { href: '/product-terminal', label: 'Product', active: false },
-    { href: '/ops-brief', label: 'Ops Brief', active: false },
-    { href: '/metrics-catalog', label: 'Metrics Catalog', active: false },
-  ];
-
   if (loading) {
     return (
-      <AppShell sidebar={<SidebarNav title="Role Views" items={navItems} />}>
+      <TerminalShell active="executive" title="Customer Drill" subtitle="Financial, session, and reliability drill view.">
         <LoadingState title="Loading customer page" description="Pulling financials, sessions, and reliability history." />
-      </AppShell>
+      </TerminalShell>
     );
   }
 
   if (error) {
     return (
-      <AppShell sidebar={<SidebarNav title="Role Views" items={navItems} />}>
+      <TerminalShell active="executive" title="Customer Drill" subtitle="Financial, session, and reliability drill view.">
         <EmptyState title="Customer page unavailable" description={error} actionLabel="Back to customers" onAction={() => window.location.assign('/customers')} />
-      </AppShell>
+      </TerminalShell>
     );
   }
 
   return (
-    <AppShell sidebar={<SidebarNav title="Role Views" items={navItems} />}>
+    <TerminalShell active="executive" title={customerName} subtitle="Customer drill page across financials, sessions, and reliability.">
       <div className="space-y-4">
-        <PageHeader
-          title={customerName}
-          subtitle="Customer drill page across financials, sessions, and reliability."
-          actions={
-            <div className="flex items-center gap-2">
-              <Link href="/customers" className="text-xs text-content-tertiary hover:text-content-primary">
-                ← Back to Customers
-              </Link>
-              {latestRisk ? <Badge variant={latestRisk.signal_score >= 0.8 ? 'error' : 'warning'}>Risk {(latestRisk.signal_score * 100).toFixed(0)}</Badge> : null}
-              {latestQueue ? <Badge variant={priorityVariant(latestQueue.priority)}>{latestQueue.priority} queue</Badge> : null}
-            </div>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <Link href="/customers" className="text-xs text-content-tertiary hover:text-content-primary">
+            ← Back to Customers
+          </Link>
+          {latestRisk ? <Badge variant={latestRisk.signal_score >= 0.8 ? 'error' : 'warning'}>Risk {(latestRisk.signal_score * 100).toFixed(0)}</Badge> : null}
+          {latestQueue ? <Badge variant={priorityVariant(latestQueue.priority)}>{latestQueue.priority} queue</Badge> : null}
+        </div>
 
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <Card className="p-3">
@@ -263,6 +250,6 @@ export default function CustomerDetailPage({ params }: { params: { organizationI
           </Card>
         ) : null}
       </div>
-    </AppShell>
+    </TerminalShell>
   );
 }

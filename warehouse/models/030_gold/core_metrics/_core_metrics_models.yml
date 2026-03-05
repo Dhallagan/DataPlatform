@@ -150,6 +150,62 @@ models:
           - not_null
           - unique
 
+  - name: fct_terminal_scorecard_daily
+    description: Canonical 15-metric executive scorecard for terminal overview.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+          - unique
+      - name: revenue_month
+        tests:
+          - not_null
+      - name: total_mrr_usd
+        tests:
+          - not_null
+      - name: total_paying_customers
+        tests:
+          - not_null
+      - name: arpu_usd
+        tests:
+          - not_null
+      - name: realized_revenue_usd_latest_month
+        tests:
+          - not_null
+      - name: collection_rate_pct_latest_month
+        tests:
+          - not_null
+      - name: open_invoice_count_latest_month
+        tests:
+          - not_null
+      - name: open_pipeline_usd
+        tests:
+          - not_null
+      - name: opportunity_win_rate_pct
+        tests:
+          - not_null
+      - name: lead_conversion_rate_pct
+        tests:
+          - not_null
+      - name: leads_created_30d
+        tests:
+          - not_null
+      - name: lead_to_opp_rate_pct_30d
+        tests:
+          - not_null
+      - name: sessions_30d
+        tests:
+          - not_null
+      - name: avg_success_rate_pct_30d
+        tests:
+          - not_null
+      - name: avg_p95_duration_seconds_30d
+        tests:
+          - not_null
+      - name: avg_errors_per_1k_sessions_30d
+        tests:
+          - not_null
+
   - name: fct_terminal_gtm_daily
     description: Daily GTM fact spine for funnel, pipeline, and growth context.
     columns:

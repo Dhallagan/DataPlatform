@@ -5,7 +5,7 @@
 -- Purpose: Canonical monthly org snapshot across GTM, finance, ops, and product
 -- =============================================================================
 
-{{ config(materialized='table') }}
+{{ config(materialized='table', schema='term', alias='business_snapshot_monthly') }}
 
 WITH months AS (
     SELECT DISTINCT month_start

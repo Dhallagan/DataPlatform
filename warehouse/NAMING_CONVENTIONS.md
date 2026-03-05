@@ -11,6 +11,7 @@ This repo uses a strict medallion layout in one database:
   - `fin`: finance models
   - `eng`: engineering models
   - `ops`: operations models
+  - `term`: terminal-serving marts and scorecards
 
 ## Prefix Rules
 
@@ -33,6 +34,7 @@ Use 3-letter schema abbreviations for gold:
 - Finance: `fin.snap_mrr`, `fin.agg_revenue_monthly`, `fin.agg_budget_vs_actual_monthly`
 - Engineering: `eng.agg_engineering_daily`, `eng.kpi_engineering`
 - Operations: `ops.agg_ops_daily`, `ops.kpi_ops`
+- Terminal: `term.exec_daily`, `term.business_snapshot_monthly`, `term.scorecard_daily`
 
 Do not repeat schema names in object names.
 Good: `gtm.agg_funnel_daily`
