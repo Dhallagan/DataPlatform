@@ -7,18 +7,15 @@ browserbase:
   outputs:
 
     # -------------------------------------------------------------------------
-    # DuckDB - Local Development
+    # DuckDB - Local Development (strict medallion in one DB)
     # -------------------------------------------------------------------------
     duckdb:
       type: duckdb
       path: "{{ env_var('WAREHOUSE_DUCKDB_PATH', '../pipeline/warehouse.duckdb') }}"
       threads: 4
-      attach:
-        - path: "{{ env_var('ANALYTICS_DUCKDB_PATH', '../pipeline/analytics.duckdb') }}"
-          alias: analytics
 
     # -------------------------------------------------------------------------
-    # MotherDuck - Cloud DuckDB
+    # MotherDuck - Cloud DuckDB (strict medallion in one DB)
     # -------------------------------------------------------------------------
     motherduck:
       type: duckdb

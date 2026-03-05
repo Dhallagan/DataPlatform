@@ -168,7 +168,7 @@ export default function FinanceActionsPage() {
             round(avg(collection_rate_pct), 2) AS avg_collection_rate_pct,
             sum(paid_invoice_count) AS paid_invoices,
             sum(open_invoice_count) AS open_invoices
-          FROM finance.monthly_revenue
+          FROM fin.agg_revenue_monthly
           WHERE revenue_month >= date_trunc('month', current_date) - interval '5 months'
           GROUP BY 1
           ORDER BY revenue_month DESC
@@ -182,7 +182,7 @@ export default function FinanceActionsPage() {
             starter_mrr_usd,
             pro_mrr_usd,
             enterprise_mrr_usd
-          FROM finance.mrr
+          FROM fin.snap_mrr
           ORDER BY as_of_date DESC
           LIMIT 1
         `),
@@ -192,7 +192,7 @@ export default function FinanceActionsPage() {
             spend_source,
             round(sum(spend_usd), 2) AS total_spend_usd,
             sum(record_count) AS total_records
-          FROM finance.ramp_spend_monthly
+          FROM fin.agg_spend_monthly
           WHERE spend_month >= date_trunc('month', current_date) - interval '2 months'
           GROUP BY 1, 2
           ORDER BY spend_month DESC, total_spend_usd DESC
@@ -202,7 +202,7 @@ export default function FinanceActionsPage() {
             vendor_name,
             round(sum(total_spend_usd), 2) AS total_spend_usd,
             count(distinct organization_id) AS organization_count
-          FROM finance.ramp_vendor_spend_monthly
+          FROM fin.agg_vendor_spend_monthly
           WHERE spend_month >= date_trunc('month', current_date) - interval '1 month'
           GROUP BY 1
           ORDER BY total_spend_usd DESC
@@ -219,7 +219,7 @@ export default function FinanceActionsPage() {
               2
             ) AS budget_utilization_ratio,
             round(sum(ap_open_usd), 2) AS ap_open_usd
-          FROM finance.finance_budget_vs_actual_monthly
+          FROM fin.agg_budget_vs_actual_monthly
           WHERE budget_month >= date_trunc('month', current_date) - interval '5 months'
           GROUP BY 1
           ORDER BY budget_month DESC

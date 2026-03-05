@@ -6,9 +6,16 @@ import Toolbar from '@/components/Toolbar';
 type ViewTab = 'domain_map' | 'object_graph' | 'lineage_explorer';
 type DomainId = 'customer' | 'runtime' | 'commercial' | 'growth' | 'ops';
 
-interface QueryPayload {
+interface MetadataTablesPayload {
   success: boolean;
-  data?: Record<string, unknown>[];
+  catalog?: {
+    tables: Array<{
+      table: string;
+      table_schema: string;
+      table_name: string;
+      column_count: number;
+    }>;
+  };
   error?: string;
 }
 
@@ -169,33 +176,15 @@ export default function OntologyPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const sql = `
-          SELECT
-            table_schema,
-            table_name,
-            COUNT(*) AS column_count
-          FROM information_schema.columns
-          WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
-            AND table_name NOT LIKE 'duckdb_%'
-          GROUP BY 1, 2
-          ORDER BY 1, 2
-        `;
-        const response = await fetch('/api/reports/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql }),
-        });
-        const payload = (await response.json()) as QueryPayload;
-        if (!response.ok || !payload.success || !payload.data) {
-          throw new Error(payload.error || 'Failed to load warehouse metadata');
+        const response = await fetch('/api/metadata/tables');
+        const payload = (await response.json()) as MetadataTablesPayload;
+        if (!response.ok || !payload.success || !payload.catalog) {
+          throw new Error(payload.error || 'Failed to load metadata catalog');
         }
 
         const next: Record<string, number> = {};
-        for (const row of payload.data) {
-          const schema = String(row.table_schema || '');
-          const table = String(row.table_name || '');
-          const columnCount = Number(row.column_count || 0);
-          next[`${schema}.${table}`] = columnCount;
+        for (const row of payload.catalog.tables) {
+          next[row.table] = Number(row.column_count || 0);
         }
         setTableColumns(next);
       } catch (err) {
@@ -248,6 +237,11 @@ export default function OntologyPage() {
   const domainObjects = useMemo<ObjectNode[]>(() => {
     return allTables
       .filter((table) => classifyDomain(table) === activeDomain)
+      .filter((table) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return table.toLowerCase().includes(term) || kindFromName(table).toLowerCase().includes(term);
+      })
       .sort()
       .map((table) => ({
         id: table,
@@ -375,6 +369,14 @@ export default function OntologyPage() {
               </button>
             ))}
           </div>
+          <div className="mt-2">
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Type to filter ontology objects and lineage..."
+              className="w-full md:w-[460px] px-3 py-2 rounded border border-border bg-surface-primary text-sm text-content-primary placeholder:text-content-tertiary"
+            />
+          </div>
           <p className="text-xs text-content-tertiary px-1 pt-2">
             {VIEW_TABS.find((tab) => tab.id === activeTab)?.description}
           </p>
@@ -440,6 +442,9 @@ export default function OntologyPage() {
             <div className="xl:col-span-5 bg-surface-elevated border border-border rounded-lg p-4">
               <h2 className="text-sm font-semibold text-content-primary mb-3">{toDomainLabel(activeDomain)} Objects</h2>
               <div className="space-y-2 max-h-[640px] overflow-auto pr-1">
+                {domainObjects.length === 0 ? (
+                  <p className="text-sm text-content-tertiary">No objects match this filter.</p>
+                ) : null}
                 {domainObjects.map((object) => (
                   <button
                     key={object.id}
@@ -488,12 +493,6 @@ export default function OntologyPage() {
           <section className="bg-surface-elevated border border-border rounded-lg p-4 space-y-3">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <h2 className="text-sm font-semibold text-content-primary">Lineage Explorer</h2>
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search object, table, metric, or signal"
-                className="w-full md:w-80 px-3 py-2 rounded border border-border bg-surface-primary text-sm text-content-primary placeholder:text-content-tertiary"
-              />
             </div>
 
             <div className="overflow-auto border border-border rounded">

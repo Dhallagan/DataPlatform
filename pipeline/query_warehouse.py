@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Query the warehouse and analytics databases.
+Query the warehouse database across all schemas.
 """
 import os
 import duckdb
@@ -39,20 +39,12 @@ WAREHOUSE_PATH = os.environ.get(
         os.path.join(os.path.dirname(__file__), "warehouse.duckdb")
     )
 )
-ANALYTICS_PATH = os.environ.get(
-    "ANALYTICS_DUCKDB_PATH",
-    os.path.join(os.path.dirname(__file__), "analytics.duckdb")
-)
 MOTHERDUCK_TOKEN = os.environ.get("MOTHERDUCK_TOKEN")
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 resolved_path = WAREHOUSE_PATH
 if not resolved_path.startswith("md:") and not os.path.isabs(resolved_path):
     resolved_path = os.path.abspath(os.path.join(PROJECT_ROOT, resolved_path))
-
-resolved_analytics = ANALYTICS_PATH
-if not resolved_analytics.startswith("md:") and not os.path.isabs(resolved_analytics):
-    resolved_analytics = os.path.abspath(os.path.join(PROJECT_ROOT, resolved_analytics))
 
 connection_kwargs = {"read_only": True}
 if resolved_path.startswith("md:"):
@@ -63,13 +55,6 @@ if resolved_path.startswith("md:"):
     connection_kwargs["config"] = {"motherduck_token": MOTHERDUCK_TOKEN}
 
 conn = duckdb.connect(resolved_path, **connection_kwargs)
-
-# Attach analytics database
-if os.path.exists(resolved_analytics) or resolved_analytics.startswith("md:"):
-    try:
-        conn.execute(f"ATTACH '{resolved_analytics}' AS analytics (READ_ONLY)")
-    except Exception:
-        pass  # May already be attached or not exist yet
 
 
 print("=" * 70)
@@ -91,7 +76,7 @@ for db, schema, count in schemas:
     print(f"  {db}.{schema:30} {count:>3} objects")
 
 # MRR Summary
-print("\nMRR SUMMARY (analytics.finance.mrr)")
+print("\nMRR SUMMARY (fin.snap_mrr)")
 print("-" * 70)
 try:
     mrr = conn.execute("""
@@ -100,7 +85,7 @@ try:
             total_mrr_usd,
             total_paying_customers,
             arpu_usd
-        FROM analytics.finance.mrr
+        FROM fin.snap_mrr
         LIMIT 1
     """).fetchdf()
     print(mrr.to_string(index=False))
@@ -108,7 +93,7 @@ except Exception as e:
     print(f"  (not available: {e})")
 
 # Active Organizations
-print("\nACTIVE ORGANIZATIONS (analytics.growth.active_organizations)")
+print("\nACTIVE ORGANIZATIONS (gtm.agg_active_organizations)")
 print("-" * 70)
 try:
     active = conn.execute("""
@@ -118,7 +103,7 @@ try:
             SUM(lifetime_sessions) as total_sessions,
             SUM(sessions_last_30d) as sessions_30d,
             activity_tier
-        FROM analytics.growth.active_organizations
+        FROM gtm.agg_active_organizations
         GROUP BY current_plan_name, activity_tier
         ORDER BY total_sessions DESC
         LIMIT 10
@@ -128,7 +113,7 @@ except Exception as e:
     print(f"  (not available: {e})")
 
 # Daily Sessions
-print("\nDAILY SESSIONS (analytics.product.daily_sessions)")
+print("\nDAILY SESSIONS (pro.agg_sessions_daily)")
 print("-" * 70)
 try:
     daily = conn.execute("""
@@ -137,7 +122,7 @@ try:
             SUM(total_sessions) as total_sessions,
             COUNT(DISTINCT organization_id) as unique_orgs,
             ROUND(AVG(avg_duration_seconds), 0) as avg_seconds
-        FROM analytics.product.daily_sessions
+        FROM pro.agg_sessions_daily
         GROUP BY session_date
         ORDER BY session_date DESC
         LIMIT 10
@@ -147,17 +132,17 @@ except Exception as e:
     print(f"  (not available: {e})")
 
 # Metric Spine
-print("\nMETRIC SPINE (analytics.core.metric_spine)")
+print("\nMETRIC SPINE (core.metric_spine)")
 print("-" * 70)
 try:
     spine = conn.execute("""
         SELECT
             metric_date,
             COUNT(DISTINCT organization_id) AS orgs,
-            SUM(runs) AS runs,
-            ROUND(AVG(success_rate_pct), 2) AS avg_success_rate_pct,
-            ROUND(SUM(mrr_usd), 2) AS mrr_usd
-        FROM analytics.core.metric_spine
+            SUM(session_count) AS session_count,
+            ROUND(AVG(session_success_rate_pct), 2) AS avg_session_success_rate_pct,
+            ROUND(SUM(subscription_mrr_usd), 2) AS subscription_mrr_usd
+        FROM core.metric_spine
         GROUP BY metric_date
         ORDER BY metric_date DESC
         LIMIT 10
@@ -167,12 +152,12 @@ except Exception as e:
     print(f"  (not available: {e})")
 
 # Cohort Retention
-print("\nCOHORT RETENTION (analytics.growth.cohort_retention)")
+print("\nCOHORT RETENTION (gtm.agg_cohort_retention_weekly)")
 print("-" * 70)
 try:
     cohort = conn.execute("""
         SELECT *
-        FROM analytics.growth.cohort_retention
+        FROM gtm.agg_cohort_retention_weekly
         ORDER BY cohort_week DESC, weeks_since_signup
         LIMIT 15
     """).fetchdf()
@@ -185,7 +170,7 @@ print("\nGROWTH KPIS (last 30d)")
 print("-" * 70)
 try:
     growth = conn.execute("""
-        SELECT * FROM analytics.growth.growth_kpis LIMIT 1
+        SELECT * FROM gtm.kpi_growth LIMIT 1
     """).fetchdf()
     print(growth.to_string(index=False))
 except Exception as e:
@@ -196,7 +181,7 @@ print("\nPRODUCT KPIS (last 30d)")
 print("-" * 70)
 try:
     product = conn.execute("""
-        SELECT * FROM analytics.product.product_kpis LIMIT 1
+        SELECT * FROM pro.kpi_product LIMIT 1
     """).fetchdf()
     print(product.to_string(index=False))
 except Exception as e:
@@ -207,7 +192,7 @@ print("\nENGINEERING KPIS (last 30d)")
 print("-" * 70)
 try:
     engineering = conn.execute("""
-        SELECT * FROM analytics.eng.engineering_kpis LIMIT 1
+        SELECT * FROM eng.kpi_engineering LIMIT 1
     """).fetchdf()
     print(engineering.to_string(index=False))
 except Exception as e:
@@ -218,12 +203,12 @@ print("\nOPS KPIS (last 30d)")
 print("-" * 70)
 try:
     ops = conn.execute("""
-        SELECT * FROM analytics.ops.ops_kpis LIMIT 1
+        SELECT * FROM ops.kpi_ops LIMIT 1
     """).fetchdf()
     print(ops.to_string(index=False))
 except Exception as e:
     print(f"  (not available: {e})")
 
 print("\n" + "=" * 70)
-print("Data flow: Supabase -> Bronze -> Silver -> Analytics")
+print("Data flow: Supabase -> Bronze -> Silver -> Gold")
 print("=" * 70)

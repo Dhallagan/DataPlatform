@@ -71,6 +71,7 @@ def build_scenario_rows(count: int, plan_id: str) -> dict[str, list[dict]]:
         "subscriptions": [],
         "browser_sessions": [],
         "session_events": [],
+        "activities": [],
     }
 
     for i in range(1, count + 1):
@@ -167,6 +168,30 @@ def build_scenario_rows(count: int, plan_id: str) -> dict[str, list[dict]]:
                 "canceled_at": None,
                 "created_at": ts(org_created),
                 "updated_at": ts(now),
+            }
+        )
+
+        signal_id = f"{org_id}|{now.date().isoformat()}|trial_conversion_risk"
+        task_id = f"growth_task|{signal_id}"
+        activity_status = "failed" if i % 5 == 0 else "success"
+        error_token = "error=rate_limited_destination" if activity_status == "failed" else "error="
+        rows["activities"].append(
+            {
+                "id": deterministic_id(f"activity:wheel:{slug}"),
+                "account_id": None,
+                "contact_id": None,
+                "lead_id": None,
+                "opportunity_id": None,
+                "activity_type": "workflow_execution",
+                "direction": "system",
+                "subject": (
+                    f"wheel_execution|organization_id={org_id}|task_id={task_id}|signal_id={signal_id}"
+                    f"|action_type=intervene_trial_conversion|destination=hubspot|{error_token}"
+                ),
+                "outcome": activity_status,
+                "occurred_at": ts(now - timedelta(minutes=max(2, i))),
+                "owner_user_id": user_id,
+                "created_at": ts(now - timedelta(minutes=max(2, i))),
             }
         )
 
@@ -281,6 +306,11 @@ def main() -> None:
         "Content-Type": "application/json",
         "Prefer": "return=minimal,resolution=merge-duplicates",
     }
+    gtm_headers = {
+        **headers,
+        "Accept-Profile": "gtm",
+        "Content-Profile": "gtm",
+    }
 
     plan_id = get_plan_id(rest_url, headers)
     rows = build_scenario_rows(args.count, plan_id)
@@ -294,10 +324,12 @@ def main() -> None:
     upsert(rest_url, headers, "subscriptions", rows["subscriptions"])
     upsert(rest_url, headers, "browser_sessions", rows["browser_sessions"])
     upsert(rest_url, headers, "session_events", rows["session_events"])
+    upsert(rest_url, gtm_headers, "activities", rows["activities"])
 
     print("Seeded trial signal scenarios successfully.")
     print(f"organizations={len(rows['organizations'])}, subscriptions={len(rows['subscriptions'])}")
     print(f"sessions={len(rows['browser_sessions'])}, events={len(rows['session_events'])}")
+    print(f"activities={len(rows['activities'])}")
 
 
 if __name__ == "__main__":

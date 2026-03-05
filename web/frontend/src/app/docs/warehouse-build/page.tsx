@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import SystemArchitectureDiagram from '@/components/SystemArchitectureDiagram';
+import DocMeta from '@/components/DocMeta';
 
 export default function WarehouseBuildDocPage() {
   return (
@@ -11,6 +12,12 @@ export default function WarehouseBuildDocPage() {
         <p className="text-sm text-content-secondary mt-1">
           Browserbase-style source system to MotherDuck warehouse and self-serve reporting app.
         </p>
+        <DocMeta
+          owner="Data Platform"
+          reviewers="Engineering, Ops"
+          lastReviewedOn="2026-03-02"
+          reviewCadence="Monthly"
+        />
       </section>
 
       <section className="bg-surface-elevated border border-border rounded-lg p-6 space-y-6">

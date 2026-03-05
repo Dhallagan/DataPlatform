@@ -14,19 +14,41 @@ load_dotenv()
 
 MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN", "")
 MOTHERDUCK_DATABASE = os.getenv("MOTHERDUCK_DATABASE", "browserbase_demo")
+MOTHERDUCK_PATH = os.getenv("MOTHERDUCK_PATH", "").strip()
 SCHEMA_BASELINE_PATH = Path(__file__).resolve().parent / "schema_baseline.json"
+QUERY_AUDIT_LOG_PATH = Path(os.getenv("QUERY_AUDIT_LOG_PATH", "/tmp/browserbase_query_audit.jsonl"))
 
 # Schemas relevant to BrowserBase data.
 # Current dbt layout:
 # - bronze_supabase (raw replication)
-# - silver (staging + core canonical models)
-# - analytics domain schemas (growth, product, finance, eng, ops, core)
-RELEVANT_SCHEMAS = ["bronze_supabase", "silver", "growth", "product", "finance", "eng", "ops", "core"]
+# - silver (staging models)
+# - core (canonical dimensions + semantic tables)
+# - gtm/pro/fin/eng/ops (domain marts)
+# - term (terminal-serving marts)
+# Keep `mart` for legacy compatibility.
+RELEVANT_SCHEMAS = [
+    "bronze_supabase",
+    "silver",
+    "core",
+    "gtm",
+    "pro",
+    "fin",
+    "eng",
+    "ops",
+    "term",
+    "mart",
+]
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:
     """Create a new MotherDuck connection."""
-    conn_str = f"md:{MOTHERDUCK_DATABASE}?motherduck_token={MOTHERDUCK_TOKEN}"
+    if MOTHERDUCK_PATH:
+        conn_str = MOTHERDUCK_PATH
+        if "motherduck_token=" not in conn_str and MOTHERDUCK_TOKEN:
+            delimiter = "&" if "?" in conn_str else "?"
+            conn_str = f"{conn_str}{delimiter}motherduck_token={MOTHERDUCK_TOKEN}"
+    else:
+        conn_str = f"md:{MOTHERDUCK_DATABASE}?motherduck_token={MOTHERDUCK_TOKEN}"
     return duckdb.connect(conn_str)
 
 
@@ -296,3 +318,874 @@ def get_schema_drift() -> dict:
         "removed_tables": removed_tables,
         "changed_tables": changed_tables,
     }
+
+
+def _schema_filter_sql() -> str:
+    return ", ".join(f"'{s}'" for s in RELEVANT_SCHEMAS)
+
+
+def get_tables_catalog() -> dict:
+    """List warehouse tables with lightweight metadata for explorer/chat discovery."""
+    with get_db() as conn:
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    table_schema,
+                    table_name,
+                    table_key,
+                    column_count,
+                    freshness_column,
+                    owner,
+                    certified,
+                    _catalog_loaded_at
+                FROM core.table_catalog
+                ORDER BY table_schema, table_name
+                """
+            ).fetchall()
+            tables = [
+                {
+                    "table": row[2],
+                    "table_schema": row[0],
+                    "table_name": row[1],
+                    "column_count": int(row[3] or 0),
+                    "freshness_column": row[4],
+                    "owner": row[5],
+                    "certified": bool(row[6]),
+                    "freshest_at": None,
+                }
+                for row in rows
+            ]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.table_catalog",
+                "schemas": RELEVANT_SCHEMAS,
+                "table_count": len(tables),
+                "tables": tables,
+            }
+        except Exception:
+            table_rows = conn.execute(
+                f"""
+                SELECT
+                    table_schema,
+                    table_name,
+                    COUNT(*) AS column_count
+                FROM information_schema.columns
+                WHERE table_schema IN ({_schema_filter_sql()})
+                GROUP BY 1, 2
+                ORDER BY 1, 2
+                """
+            ).fetchall()
+
+            freshness_targets = _discover_freshness_targets(conn)
+            freshness_target_map = {(schema, table): column for schema, table, column in freshness_targets}
+
+            freshness_map: dict[tuple[str, str], str | None] = {}
+            for schema, table, freshness_column in freshness_targets:
+                q_schema = _quoted_identifier(schema)
+                q_table = _quoted_identifier(table)
+                q_freshness = _quoted_identifier(freshness_column)
+                freshest_at = conn.execute(
+                    f"""
+                    SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
+                    FROM {q_schema}.{q_table}
+                    """
+                ).fetchone()[0]
+                freshness_map[(schema, table)] = _isoformat(freshest_at)
+
+            tables = []
+            for schema, table, column_count in table_rows:
+                tables.append(
+                    {
+                        "table": f"{schema}.{table}",
+                        "table_schema": schema,
+                        "table_name": table,
+                        "column_count": int(column_count or 0),
+                        "freshness_column": freshness_target_map.get((schema, table)),
+                        "freshest_at": freshness_map.get((schema, table)),
+                    }
+                )
+
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "information_schema",
+                "schemas": RELEVANT_SCHEMAS,
+                "table_count": len(tables),
+                "tables": tables,
+            }
+
+
+def get_table_metadata(table_ref: str) -> dict | None:
+    """Get detailed table metadata for a fully qualified table name."""
+    if "." not in table_ref:
+        return None
+    schema, table = table_ref.split(".", 1)
+    if schema not in RELEVANT_SCHEMAS:
+        return None
+
+    with get_db() as conn:
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    column_name,
+                    data_type,
+                    nullable,
+                    ordinal_position,
+                    sensitivity_class
+                FROM core.column_catalog
+                WHERE table_schema = ?
+                  AND table_name = ?
+                ORDER BY ordinal_position
+                """,
+                (schema, table),
+            ).fetchall()
+            if not rows:
+                return None
+            columns = [
+                {
+                    "name": column_name,
+                    "type": data_type,
+                    "nullable": bool(nullable),
+                    "ordinal_position": int(ordinal_position or 0),
+                    "sensitivity_class": sensitivity_class,
+                }
+                for column_name, data_type, nullable, ordinal_position, sensitivity_class in rows
+            ]
+            table_row = conn.execute(
+                """
+                SELECT freshness_column, owner, certified
+                FROM core.table_catalog
+                WHERE table_schema = ? AND table_name = ?
+                LIMIT 1
+                """,
+                (schema, table),
+            ).fetchone()
+            freshness_column = table_row[0] if table_row else None
+            owner = table_row[1] if table_row else None
+            certified = bool(table_row[2]) if table_row else False
+            return {
+                "table": table_ref,
+                "table_schema": schema,
+                "table_name": table,
+                "column_count": len(columns),
+                "columns": columns,
+                "freshness_column": freshness_column,
+                "owner": owner,
+                "certified": certified,
+                "freshest_at": None,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.column_catalog",
+            }
+        except Exception:
+            rows = conn.execute(
+                """
+                SELECT
+                    column_name,
+                    data_type,
+                    is_nullable,
+                    ordinal_position
+                FROM information_schema.columns
+                WHERE table_schema = ?
+                  AND table_name = ?
+                ORDER BY ordinal_position
+                """,
+                (schema, table),
+            ).fetchall()
+
+            if not rows:
+                return None
+
+            columns = [
+                {
+                    "name": column_name,
+                    "type": data_type,
+                    "nullable": is_nullable == "YES",
+                    "ordinal_position": int(ordinal_position or 0),
+                }
+                for column_name, data_type, is_nullable, ordinal_position in rows
+            ]
+
+            freshness_targets = _discover_freshness_targets(conn)
+            freshness_column = None
+            freshest_at = None
+            for target_schema, target_table, target_col in freshness_targets:
+                if target_schema == schema and target_table == table:
+                    freshness_column = target_col
+                    q_schema = _quoted_identifier(schema)
+                    q_table = _quoted_identifier(table)
+                    q_freshness = _quoted_identifier(target_col)
+                    freshest_at = _isoformat(
+                        conn.execute(
+                            f"""
+                            SELECT MAX(CAST({q_freshness} AS TIMESTAMP))
+                            FROM {q_schema}.{q_table}
+                            """
+                        ).fetchone()[0]
+                    )
+                    break
+
+            return {
+                "table": table_ref,
+                "table_schema": schema,
+                "table_name": table,
+                "column_count": len(columns),
+                "columns": columns,
+                "freshness_column": freshness_column,
+                "freshest_at": freshest_at,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "information_schema",
+            }
+
+
+def get_table_preview(table_ref: str, limit: int = 20) -> dict | None:
+    """Return a small preview sample for a fully qualified table name."""
+    if "." not in table_ref:
+        return None
+    schema, table = table_ref.split(".", 1)
+    if schema not in RELEVANT_SCHEMAS:
+        return None
+
+    safe_limit = max(1, min(limit, 100))
+    q_schema = _quoted_identifier(schema)
+    q_table = _quoted_identifier(table)
+
+    with get_db() as conn:
+        try:
+            cursor = conn.execute(f"SELECT * FROM {q_schema}.{q_table} LIMIT {safe_limit}")
+            columns = [str(desc[0]) for desc in cursor.description or []]
+            rows = cursor.fetchall()
+            preview_rows: list[dict[str, Any]] = []
+            for row in rows:
+                rendered_row: dict[str, Any] = {}
+                for idx, value in enumerate(row):
+                    col = columns[idx]
+                    if value is None or isinstance(value, (str, int, float, bool)):
+                        rendered_row[col] = value
+                    elif isinstance(value, datetime):
+                        rendered_row[col] = _isoformat(value)
+                    else:
+                        rendered_row[col] = str(value)
+                preview_rows.append(rendered_row)
+
+            return {
+                "table": table_ref,
+                "table_schema": schema,
+                "table_name": table,
+                "limit": safe_limit,
+                "row_count": len(preview_rows),
+                "columns": columns,
+                "rows": preview_rows,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "table_scan",
+            }
+        except Exception:
+            return None
+
+
+def get_metrics_catalog() -> dict:
+    """Return metrics catalog, preferring certified registry when available."""
+    with get_db() as conn:
+        try:
+            catalog_rows = conn.execute(
+                """
+                SELECT
+                    metric_name,
+                    metric_key,
+                    certified,
+                    business_definition,
+                    sql_definition_or_model,
+                    grain,
+                    owner,
+                    freshness_sla,
+                    quality_tests,
+                    version,
+                    effective_date
+                FROM core.metric_catalog
+                ORDER BY metric_name
+                """
+            ).fetchall()
+            metrics = [
+                {
+                    "metric_name": row[0],
+                    "metric_key": row[1],
+                    "certified": bool(row[2]),
+                    "business_definition": row[3],
+                    "sql_definition_or_model": row[4],
+                    "grain": row[5],
+                    "owner": row[6],
+                    "freshness_sla": row[7],
+                    "quality_tests": row[8],
+                    "version": row[9],
+                    "effective_date": _isoformat(row[10]),
+                    "source": "core.metric_catalog",
+                }
+                for row in catalog_rows
+            ]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "metric_count": len(metrics),
+                "source": "core.metric_catalog",
+                "metrics": metrics,
+            }
+        except Exception:
+            pass
+
+        try:
+            registry_rows = conn.execute(
+                """
+                SELECT
+                    metric_name,
+                    certified,
+                    business_definition,
+                    sql_definition_or_model,
+                    grain,
+                    owner,
+                    freshness_sla,
+                    quality_tests,
+                    version,
+                    effective_date
+                FROM core.metric_registry
+                ORDER BY metric_name
+                """
+            ).fetchall()
+            metrics = [
+                {
+                    "metric_name": row[0],
+                    "certified": bool(row[1]),
+                    "business_definition": row[2],
+                    "sql_definition_or_model": row[3],
+                    "grain": row[4],
+                    "owner": row[5],
+                    "freshness_sla": row[6],
+                    "quality_tests": row[7],
+                    "version": row[8],
+                    "effective_date": _isoformat(row[9]),
+                    "source": "core.metric_registry",
+                }
+                for row in registry_rows
+            ]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "metric_count": len(metrics),
+                "source": "core.metric_registry",
+                "metrics": metrics,
+            }
+        except Exception:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT
+                    table_schema,
+                    table_name
+                FROM information_schema.columns
+                WHERE table_schema IN ({_schema_filter_sql()})
+                ORDER BY 1, 2
+                """
+            ).fetchall()
+
+            metric_keywords = ("metric", "kpi", "mrr", "revenue", "retention", "funnel", "snapshot", "daily_kpis")
+            metrics = []
+            for schema, table in rows:
+                lower = table.lower()
+                if any(keyword in lower for keyword in metric_keywords):
+                    full_name = f"{schema}.{table}"
+                    metrics.append(
+                        {
+                            "metric_object": full_name,
+                            "table_schema": schema,
+                            "table_name": table,
+                            "certified": schema == "core" or "kpi" in lower or "metric" in lower,
+                            "source": "heuristic_discovery",
+                        }
+                    )
+
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "metric_count": len(metrics),
+                "source": "heuristic_discovery",
+                "metrics": metrics,
+            }
+
+
+def get_llm_context(limit_tables: int = 200, limit_metrics: int = 200, limit_columns: int = 2000) -> dict:
+    """Return compact warehouse context optimized for LLM discovery."""
+    safe_table_limit = max(1, min(limit_tables, 1000))
+    safe_metric_limit = max(1, min(limit_metrics, 1000))
+    safe_column_limit = max(1, min(limit_columns, 10000))
+
+    with get_db() as conn:
+        try:
+            table_rows = conn.execute(
+                """
+                SELECT
+                    table_key,
+                    owner,
+                    certified,
+                    column_count,
+                    freshness_column
+                FROM core.table_catalog
+                ORDER BY table_key
+                LIMIT ?
+                """,
+                (safe_table_limit,),
+            ).fetchall()
+            metric_rows = conn.execute(
+                """
+                SELECT
+                    metric_key,
+                    metric_name,
+                    owner,
+                    certified,
+                    grain,
+                    freshness_sla
+                FROM core.metric_catalog
+                ORDER BY metric_key
+                LIMIT ?
+                """,
+                (safe_metric_limit,),
+            ).fetchall()
+            column_rows = conn.execute(
+                """
+                SELECT
+                    table_schema,
+                    table_name,
+                    column_name,
+                    data_type,
+                    sensitivity_class
+                FROM core.column_catalog
+                ORDER BY table_schema, table_name, ordinal_position
+                LIMIT ?
+                """,
+                (safe_column_limit,),
+            ).fetchall()
+
+            tables = [
+                {
+                    "table_key": row[0],
+                    "owner": row[1],
+                    "certified": bool(row[2]),
+                    "column_count": int(row[3] or 0),
+                    "freshness_column": row[4],
+                }
+                for row in table_rows
+            ]
+            metrics = [
+                {
+                    "metric_key": row[0],
+                    "metric_name": row[1],
+                    "owner": row[2],
+                    "certified": bool(row[3]),
+                    "grain": row[4],
+                    "freshness_sla": row[5],
+                }
+                for row in metric_rows
+            ]
+            columns = [
+                {
+                    "table_key": f"{row[0]}.{row[1]}",
+                    "column_name": row[2],
+                    "data_type": row[3],
+                    "sensitivity_class": row[4],
+                }
+                for row in column_rows
+            ]
+
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.catalog",
+                "table_count": len(tables),
+                "metric_count": len(metrics),
+                "column_count": len(columns),
+                "tables": tables,
+                "metrics": metrics,
+                "columns": columns,
+            }
+        except Exception:
+            tables_catalog = get_tables_catalog()
+            metrics_catalog = get_metrics_catalog()
+            tables = (tables_catalog.get("tables") or [])[:safe_table_limit]
+            metrics = (metrics_catalog.get("metrics") or [])[:safe_metric_limit]
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "fallback",
+                "table_count": len(tables),
+                "metric_count": len(metrics),
+                "column_count": 0,
+                "tables": tables,
+                "metrics": metrics,
+                "columns": [],
+            }
+
+
+def get_lineage_for_object(object_name: str) -> dict:
+    """Return a lightweight lineage hint by matching object token across layers."""
+    raw = object_name.strip().lower()
+    token = raw.split(".")[-1]
+    for prefix in ("stg_", "fct_", "dim_", "v_", "kpi_"):
+        if token.startswith(prefix):
+            token = token[len(prefix):]
+    for suffix in ("_daily", "_monthly", "_snapshot", "_kpis", "_metrics"):
+        if token.endswith(suffix):
+            token = token[: -len(suffix)]
+
+    with get_db() as conn:
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    child_object,
+                    parent_object
+                FROM core.lineage_catalog
+                """
+            ).fetchall()
+
+            related = []
+            bronze = []
+            silver = []
+            analytics = []
+            for child_object, parent_object in rows:
+                left = str(child_object or "")
+                right = str(parent_object or "")
+                haystack = f"{left} {right}".lower()
+                if token and token in haystack:
+                    related.append({"child": left, "parent": right})
+                    for candidate in (left, right):
+                        if candidate.startswith("bronze_supabase."):
+                            bronze.append(candidate)
+                        elif candidate.startswith("silver."):
+                            silver.append(candidate)
+                        else:
+                            analytics.append(candidate)
+
+            return {
+                "object": object_name,
+                "token": token,
+                "lineage": {
+                    "bronze": sorted(list(set(bronze))),
+                    "silver": sorted(list(set(silver))),
+                    "analytics": sorted(list(set(analytics))),
+                },
+                "edges": related[:100],
+                "related_count": len(related),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "core.lineage_catalog",
+            }
+        except Exception:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT table_schema, table_name
+                FROM information_schema.columns
+                WHERE table_schema IN ({_schema_filter_sql()})
+                ORDER BY 1, 2
+                """
+            ).fetchall()
+
+            related = []
+            for schema, table in rows:
+                if token and token in table.lower():
+                    related.append(f"{schema}.{table}")
+
+            bronze = [name for name in related if name.startswith("bronze_supabase.")]
+            silver = [name for name in related if name.startswith("silver.")]
+            analytics = [
+                name
+                for name in related
+                if not name.startswith("bronze_supabase.") and not name.startswith("silver.")
+            ]
+
+            return {
+                "object": object_name,
+                "token": token,
+                "lineage": {
+                    "bronze": bronze,
+                    "silver": silver,
+                    "analytics": analytics,
+                },
+                "related_count": len(related),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "source": "information_schema",
+            }
+
+
+def search_metadata_catalog(query: str, limit: int = 25) -> dict:
+    """Search tables and metrics from central catalog with fallback."""
+    term = query.strip()
+    if not term:
+        return {
+            "query": query,
+            "count": 0,
+            "results": [],
+            "source": "none",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    safe_limit = max(1, min(limit, 100))
+    pattern = f"%{term.lower()}%"
+
+    with get_db() as conn:
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    'table' AS result_type,
+                    table_key AS name,
+                    owner,
+                    certified,
+                    NULL AS grain,
+                    NULL AS freshness_sla,
+                    table_key AS table_key
+                FROM core.table_catalog
+                WHERE lower(table_key) LIKE ?
+                   OR lower(owner) LIKE ?
+                UNION ALL
+                SELECT
+                    'metric' AS result_type,
+                    metric_key AS name,
+                    owner,
+                    certified,
+                    grain,
+                    freshness_sla,
+                    NULL AS table_key
+                FROM core.metric_catalog
+                WHERE lower(metric_key) LIKE ?
+                   OR lower(metric_name) LIKE ?
+                   OR lower(owner) LIKE ?
+                UNION ALL
+                SELECT
+                    'column' AS result_type,
+                    concat(c.table_schema, '.', c.table_name, '.', c.column_name) AS name,
+                    t.owner AS owner,
+                    t.certified AS certified,
+                    NULL AS grain,
+                    NULL AS freshness_sla,
+                    concat(c.table_schema, '.', c.table_name) AS table_key
+                FROM core.column_catalog c
+                LEFT JOIN core.table_catalog t
+                  ON c.table_schema = t.table_schema
+                 AND c.table_name = t.table_name
+                WHERE lower(c.column_name) LIKE ?
+                   OR lower(concat(c.table_schema, '.', c.table_name, '.', c.column_name)) LIKE ?
+                ORDER BY result_type, name
+                LIMIT ?
+                """,
+                (pattern, pattern, pattern, pattern, pattern, pattern, pattern, safe_limit),
+            ).fetchall()
+            results = [
+                {
+                    "result_type": row[0],
+                    "name": row[1],
+                    "owner": row[2],
+                    "certified": bool(row[3]),
+                    "grain": row[4],
+                    "freshness_sla": row[5],
+                    "table_key": row[6],
+                }
+                for row in rows
+            ]
+            return {
+                "query": query,
+                "count": len(results),
+                "results": results,
+                "source": "core.catalog",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    table_schema,
+                    table_name
+                FROM information_schema.tables
+                WHERE table_schema IN ({_schema_filter_sql()})
+                  AND (
+                    lower(table_schema) LIKE ?
+                    OR lower(table_name) LIKE ?
+                    OR lower(concat(table_schema, '.', table_name)) LIKE ?
+                  )
+                ORDER BY table_schema, table_name
+                LIMIT ?
+                """,
+                (pattern, pattern, pattern, safe_limit),
+            ).fetchall()
+            results = [
+                {
+                    "result_type": "table",
+                    "name": f"{row[0]}.{row[1]}",
+                    "owner": None,
+                    "certified": False,
+                    "grain": None,
+                    "freshness_sla": None,
+                    "table_key": f"{row[0]}.{row[1]}",
+                }
+                for row in rows
+            ]
+            return {
+                "query": query,
+                "count": len(results),
+                "results": results,
+                "source": "information_schema",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+
+def get_metadata_catalog_health() -> dict:
+    """Return central catalog health summary."""
+    with get_db() as conn:
+        checks = []
+        for table_name in ("table_catalog", "column_catalog", "metric_catalog", "lineage_catalog"):
+            full_name = f"core.{table_name}"
+            try:
+                row_count, loaded_at = conn.execute(
+                    f"""
+                    SELECT COUNT(*) AS row_count, MAX(_catalog_loaded_at) AS loaded_at
+                    FROM {full_name}
+                    """
+                ).fetchone()
+                checks.append(
+                    {
+                        "object": full_name,
+                        "exists": True,
+                        "row_count": int(row_count or 0),
+                        "last_loaded_at": _isoformat(loaded_at),
+                    }
+                )
+            except Exception as exc:
+                checks.append(
+                    {
+                        "object": full_name,
+                        "exists": False,
+                        "row_count": 0,
+                        "last_loaded_at": None,
+                        "error": str(exc),
+                    }
+                )
+
+        healthy = all(item["exists"] and item["row_count"] > 0 for item in checks)
+        return {
+            "healthy": healthy,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "checks": checks,
+        }
+
+
+def list_metadata_objects(
+    *,
+    search: str = "",
+    domain: str | None = None,
+    schema: str | None = None,
+    kind: str | None = None,
+    owner: str | None = None,
+    certified_only: bool = False,
+    sort_key: str = "table_key",
+    sort_dir: str = "asc",
+    page: int = 1,
+    page_size: int = 50,
+) -> dict:
+    """List catalog objects with filtering/sorting/pagination."""
+    safe_page = max(1, page)
+    safe_page_size = max(1, min(page_size, 200))
+    offset = (safe_page - 1) * safe_page_size
+    safe_sort_key = sort_key if sort_key in {"table_key", "table_schema", "table_name", "owner", "column_count", "certified"} else "table_key"
+    safe_sort_dir = "DESC" if sort_dir.lower() == "desc" else "ASC"
+    term = search.strip().lower()
+
+    with get_db() as conn:
+        try:
+            where_clauses = ["1 = 1"]
+            params: list[Any] = []
+
+            if term:
+                where_clauses.append("(lower(table_key) LIKE ? OR lower(owner) LIKE ?)")
+                like = f"%{term}%"
+                params.extend([like, like])
+            if schema:
+                where_clauses.append("table_schema = ?")
+                params.append(schema)
+            if owner:
+                where_clauses.append("owner = ?")
+                params.append(owner)
+            if certified_only:
+                where_clauses.append("certified = TRUE")
+
+            if domain:
+                domain_map = {
+                    "customer": "(lower(table_key) LIKE '%organization%' OR lower(table_key) LIKE '%user%' OR lower(table_key) LIKE '%account%' OR lower(table_key) LIKE '%contact%')",
+                    "runtime": "(lower(table_key) LIKE '%session%' OR lower(table_key) LIKE '%run%' OR lower(table_key) LIKE '%event%' OR lower(table_key) LIKE '%project%' OR lower(table_key) LIKE '%api_key%')",
+                    "commercial": "(lower(table_key) LIKE '%plan%' OR lower(table_key) LIKE '%subscription%' OR lower(table_key) LIKE '%invoice%' OR lower(table_key) LIKE '%revenue%' OR lower(table_key) LIKE '%mrr%' OR lower(table_key) LIKE '%usage%')",
+                    "growth": "(lower(table_key) LIKE '%growth%' OR lower(table_key) LIKE '%gtm%' OR lower(table_key) LIKE '%lead%' OR lower(table_key) LIKE '%opportunit%' OR lower(table_key) LIKE '%pipeline%' OR lower(table_key) LIKE '%task%')",
+                    "ops": "(1 = 1)",
+                }
+                where_clauses.append(domain_map.get(domain, "(1 = 1)"))
+
+            if kind:
+                kind_map = {
+                    "metric": "(lower(table_key) LIKE '%kpi%' OR lower(table_key) LIKE '%metric%' OR lower(table_key) LIKE '%mrr%' OR lower(table_key) LIKE '%signal%')",
+                    "fact": "(lower(table_key) LIKE '%fct%' OR lower(table_key) LIKE '%daily%' OR lower(table_key) LIKE '%snapshot%' OR lower(table_key) LIKE '%queue%')",
+                    "entity": "(lower(table_key) NOT LIKE '%kpi%' AND lower(table_key) NOT LIKE '%metric%' AND lower(table_key) NOT LIKE '%mrr%' AND lower(table_key) NOT LIKE '%signal%' AND lower(table_key) NOT LIKE '%fct%' AND lower(table_key) NOT LIKE '%daily%' AND lower(table_key) NOT LIKE '%snapshot%' AND lower(table_key) NOT LIKE '%queue%')",
+                }
+                where_clauses.append(kind_map.get(kind, "(1 = 1)"))
+
+            where_sql = " AND ".join(where_clauses)
+
+            total_count = conn.execute(
+                f"SELECT COUNT(*) FROM core.table_catalog WHERE {where_sql}",
+                params,
+            ).fetchone()[0]
+
+            rows = conn.execute(
+                f"""
+                SELECT
+                    table_key,
+                    table_schema,
+                    table_name,
+                    owner,
+                    certified,
+                    column_count,
+                    freshness_column,
+                    _catalog_loaded_at
+                FROM core.table_catalog
+                WHERE {where_sql}
+                ORDER BY {safe_sort_key} {safe_sort_dir}
+                LIMIT ? OFFSET ?
+                """,
+                [*params, safe_page_size, offset],
+            ).fetchall()
+
+            objects = [
+                {
+                    "table_key": row[0],
+                    "table_schema": row[1],
+                    "table_name": row[2],
+                    "owner": row[3],
+                    "certified": bool(row[4]),
+                    "column_count": int(row[5] or 0),
+                    "freshness_column": row[6],
+                    "catalog_loaded_at": _isoformat(row[7]),
+                }
+                for row in rows
+            ]
+            return {
+                "source": "core.table_catalog",
+                "page": safe_page,
+                "page_size": safe_page_size,
+                "total_count": int(total_count or 0),
+                "objects": objects,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception:
+            return {
+                "source": "fallback_unavailable",
+                "page": safe_page,
+                "page_size": safe_page_size,
+                "total_count": 0,
+                "objects": [],
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+
+def append_query_audit_event(event: dict[str, Any]) -> None:
+    """Append one query-audit event as JSONL for traceability."""
+    QUERY_AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = dict(event)
+    payload.setdefault("logged_at", datetime.now(timezone.utc).isoformat())
+    with QUERY_AUDIT_LOG_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, default=str) + "\n")

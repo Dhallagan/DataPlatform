@@ -83,19 +83,21 @@ REQUEST_SESSION = create_request_session()
 # - source_table: table name in Supabase
 # - source_schema: schema in Supabase REST profile
 # - bronze_table: destination table in bronze_supabase
+# - watermark_column: (optional) column for incremental extraction
 TABLES = [
     {"source_table": "plans", "source_schema": "public", "bronze_table": "plans"},
-    {"source_table": "organizations", "source_schema": "public", "bronze_table": "organizations"},
-    {"source_table": "users", "source_schema": "public", "bronze_table": "users"},
+    {"source_table": "organizations", "source_schema": "public", "bronze_table": "organizations", "watermark_column": "updated_at"},
+    {"source_table": "users", "source_schema": "public", "bronze_table": "users", "watermark_column": "updated_at"},
     {"source_table": "organization_members", "source_schema": "public", "bronze_table": "organization_members"},
-    {"source_table": "subscriptions", "source_schema": "public", "bronze_table": "subscriptions"},
+    {"source_table": "subscriptions", "source_schema": "public", "bronze_table": "subscriptions", "watermark_column": "updated_at"},
     {"source_table": "api_keys", "source_schema": "public", "bronze_table": "api_keys"},
     {"source_table": "projects", "source_schema": "public", "bronze_table": "projects"},
-    {"source_table": "browser_sessions", "source_schema": "public", "bronze_table": "browser_sessions"},
+    {"source_table": "browser_sessions", "source_schema": "public", "bronze_table": "browser_sessions", "watermark_column": "updated_at"},
     {"source_table": "session_events", "source_schema": "public", "bronze_table": "session_events"},
     {"source_table": "usage_records", "source_schema": "public", "bronze_table": "usage_records"},
     {"source_table": "invoices", "source_schema": "public", "bronze_table": "invoices"},
     # GTM schema (Salesforce-like simulation)
+    {"source_table": "employees", "source_schema": "gtm", "bronze_table": "gtm_employees"},
     {"source_table": "accounts", "source_schema": "gtm", "bronze_table": "gtm_accounts"},
     {"source_table": "contacts", "source_schema": "gtm", "bronze_table": "gtm_contacts"},
     {"source_table": "leads", "source_schema": "gtm", "bronze_table": "gtm_leads"},
@@ -358,6 +360,21 @@ def create_bronze_schema(conn):
             due_date DATE,
             paid_at TIMESTAMP,
             created_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.gtm_employees (
+            id VARCHAR PRIMARY KEY,
+            employee_email VARCHAR,
+            full_name VARCHAR,
+            role_title VARCHAR,
+            team VARCHAR,
+            manager_employee_id VARCHAR,
+            is_active BOOLEAN,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
             _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -653,6 +670,45 @@ def create_bronze_schema(conn):
     """)
 
 
+def ensure_replication_state_table(conn):
+    """Create the replication state table for watermark tracking."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase._replication_state (
+            table_name TEXT PRIMARY KEY,
+            high_watermark TEXT,
+            watermark_column TEXT,
+            last_sync_at TIMESTAMP,
+            rows_synced INTEGER
+        )
+    """)
+
+
+def get_watermark(conn, bronze_table: str) -> str | None:
+    """Get the stored high watermark for a table."""
+    result = conn.execute(
+        "SELECT high_watermark FROM bronze_supabase._replication_state WHERE table_name = ?",
+        [bronze_table],
+    ).fetchone()
+    return result[0] if result else None
+
+
+def set_watermark(conn, bronze_table: str, watermark_column: str, watermark_value: str, rows_synced: int) -> None:
+    """Store the high watermark after a successful sync."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
+    conn.execute(
+        """
+        INSERT INTO bronze_supabase._replication_state (table_name, high_watermark, watermark_column, last_sync_at, rows_synced)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (table_name) DO UPDATE SET
+            high_watermark = EXCLUDED.high_watermark,
+            watermark_column = EXCLUDED.watermark_column,
+            last_sync_at = EXCLUDED.last_sync_at,
+            rows_synced = EXCLUDED.rows_synced
+        """,
+        [bronze_table, watermark_value, watermark_column, now, rows_synced],
+    )
+
+
 def sync_table(conn, bronze_table: str, rows: list):
     """Sync rows into DuckDB bronze with all-or-nothing replacement semantics."""
     dest_columns = get_table_columns(conn, bronze_table)
@@ -737,6 +793,7 @@ def main():
         # Create bronze schema
         print("Creating bronze schema...")
         create_bronze_schema(conn)
+        ensure_replication_state_table(conn)
 
         # Sync each table
         print("\nSyncing tables from Supabase → DuckDB (Bronze)...")
@@ -744,9 +801,28 @@ def main():
             source_table = table_cfg["source_table"]
             source_schema = table_cfg["source_schema"]
             bronze_table = table_cfg["bronze_table"]
-            print(f"  → Fetching {source_schema}.{source_table} ...")
+            watermark_column = table_cfg.get("watermark_column")
+
+            # Check for stored watermark for incremental sync
+            high_watermark = None
+            if watermark_column:
+                high_watermark = get_watermark(conn, bronze_table)
+
+            if high_watermark:
+                print(f"  → Fetching {source_schema}.{source_table} (incremental, {watermark_column} > {high_watermark}) ...")
+            else:
+                print(f"  → Fetching {source_schema}.{source_table} (full refresh) ...")
+
             rows = fetch_table(source_table, source_schema)
             sync_table(conn, bronze_table, rows)
+
+            # Store high watermark after successful sync
+            if watermark_column and rows:
+                max_watermark = max(
+                    (row.get(watermark_column, "") or "") for row in rows
+                )
+                if max_watermark:
+                    set_watermark(conn, bronze_table, watermark_column, max_watermark, len(rows))
 
         # Show summary
         print("\n" + "=" * 60)

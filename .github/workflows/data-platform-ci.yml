@@ -26,7 +26,7 @@ jobs:
       - name: Python syntax checks
         run: |
           python -m py_compile pipeline/*.py
-          python -m py_compile BasedHoc/backend/main.py BasedHoc/backend/db/database.py BasedHoc/backend/agent/agent.py
+          python -m py_compile web/backend/main.py web/backend/db/database.py web/backend/agent/agent.py
 
       - name: dbt parse
         run: |
@@ -34,6 +34,10 @@ jobs:
           export ANALYTICS_DUCKDB_PATH="$RUNNER_TEMP/analytics.duckdb"
           cd warehouse
           dbt parse --target duckdb
+
+      - name: Build metadata lineage seed from artifacts
+        run: |
+          python pipeline/ingest_metadata_catalog.py --manifest warehouse/target/manifest.json --lineage-out warehouse/seeds/metadata/metadata_lineage_catalog.csv
 
       - name: Schema contract checks
         run: |
@@ -66,10 +70,18 @@ jobs:
           chmod +x ./pipeline/run_pipeline.sh
           ./pipeline/run_pipeline.sh
 
-      - name: Growth workflow coverage checks
+      - name: Tier-1 warehouse contract checks
         env:
           WAREHOUSE_DUCKDB_PATH: ${{ runner.temp }}/warehouse.duckdb
           ANALYTICS_DUCKDB_PATH: ${{ runner.temp }}/analytics.duckdb
         run: |
           cd warehouse
-          dbt test --target duckdb --select growth_action_log_queue_coverage growth_action_log_status_consistency growth_task_queue_threshold_enforcement signal_trial_conversion_risk_score_bounds
+          dbt test --target duckdb --select \
+            metric_spine_daily_unique_grain \
+            metric_spine_daily_constraints \
+            daily_kpis_bounds \
+            metric_registry_contract \
+            growth_action_log_queue_coverage \
+            growth_action_log_status_consistency \
+            growth_task_queue_threshold_enforcement \
+            signal_trial_conversion_risk_score_bounds

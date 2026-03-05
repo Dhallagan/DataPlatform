@@ -1,0 +1,76 @@
+BrowserBase Data Platform: LLM Operating Contract
+Version: 1.0
+Last Updated: 2026-03-02
+Owner: Data Platform
+
+Purpose
+- Enable LLM workflows to safely perform the same analytical tasks as a human analyst.
+- Require governed metrics, data provenance, and policy-compliant access for every answer.
+
+Scope
+- Source systems: Supabase operational data and connected business domains.
+- Warehouse: MotherDuck/DuckDB with dbt-managed medallion and domain models.
+- Surfaces: Chat assistant, data explorer, reporting APIs, workflow agents.
+
+Non-Goals
+- Free-form unrestricted SQL over all schemas.
+- Answers without citations to metric definitions or source tables.
+- Any write operation to warehouse/source systems from analyst-facing tools.
+
+Allowed Schemas (Read)
+- bronze_supabase
+- silver
+- core
+- finance
+- growth
+- product
+- eng
+- ops
+
+Denied Operations
+- DDL/DML: CREATE, ALTER, DROP, TRUNCATE, INSERT, UPDATE, DELETE, MERGE
+- Privilege operations: GRANT, REVOKE
+- External data movement from ad-hoc tool surfaces
+
+Required Answer Contract
+- Include provenance:
+  - tables and models used
+  - certified metric definitions used
+  - freshness timestamp(s)
+- Include limitations or caveats when assumptions are made.
+- Prefer certified metric models over raw-table calculations.
+- If confidence is low, ask clarifying questions or return a safe fallback path.
+
+Metric Governance Rules
+- Every business metric must have:
+  - metric_name
+  - business_definition
+  - sql_definition_or_model
+  - grain
+  - owner
+  - freshness_sla
+  - quality_tests
+  - changelog
+- LLM must prioritize metrics marked certified=true.
+- If a metric is uncertified, answer must explicitly label it as provisional.
+
+Discovery and Exploration Rules
+- Before SQL generation, inspect metadata catalog:
+  - table_catalog
+  - column_catalog
+  - metric_catalog
+  - lineage_catalog
+- Prefer semantic routes:
+  1) metric_catalog lookup
+  2) lineage-aware model selection
+  3) SQL generation constrained by policy
+
+Security and Privacy
+- Enforce role-based access checks before query execution.
+- Sensitive columns must be masked/redacted in analyst and LLM outputs.
+- All executed queries must be audit-logged with actor, timestamp, scope, and status.
+
+Fallback Behavior
+- On policy conflict: decline and explain allowed alternatives.
+- On missing metadata: return guided exploration steps, do not fabricate.
+- On query failure: return actionable error and next safe query suggestion.

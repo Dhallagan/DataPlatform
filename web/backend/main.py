@@ -2,6 +2,7 @@
 
 import os
 import ssl
+from pathlib import Path
 
 # Fix broken SSL_CERT_FILE before any HTTP clients are created
 _ssl_cert = os.environ.get("SSL_CERT_FILE", "")
@@ -14,19 +15,28 @@ from contextlib import asynccontextmanager
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from models.chat import ChatRequest, ChatResponse
 from agent.agent import run_agent, run_agent_streaming
 from agent.tools.schema import introspect_schema
-from agent.tools.query import execute_query
+from agent.tools.query import run_governed_query
 from db.database import (
     get_schema_info,
     test_connection,
     get_monitoring_overview,
     get_schema_drift,
     save_schema_baseline,
+    get_tables_catalog,
+    get_table_metadata,
+    get_table_preview,
+    get_metrics_catalog,
+    get_lineage_for_object,
+    search_metadata_catalog,
+    get_metadata_catalog_health,
+    list_metadata_objects,
+    get_llm_context,
 )
 
 
@@ -50,6 +60,10 @@ app = FastAPI(
     version="0.3.0",
     lifespan=lifespan,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+LLM_TXT_PATH = REPO_ROOT / "LLM.txt"
+DATA_DICTIONARY_PATH = REPO_ROOT / "DATA_DICTIONARY.md"
 
 # CORS origins can be provided either as FRONTEND_ORIGINS (comma-separated)
 # or as a single FRONTEND_ORIGIN value.
@@ -89,6 +103,159 @@ async def get_schema():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/platform/data-dictionary")
+async def platform_data_dictionary():
+    """Return canonical data dictionary markdown for frontend/docs surfaces."""
+    if not DATA_DICTIONARY_PATH.exists():
+        raise HTTPException(status_code=404, detail="DATA_DICTIONARY.md not found")
+    return {
+        "success": True,
+        "name": "DATA_DICTIONARY.md",
+        "markdown": DATA_DICTIONARY_PATH.read_text(encoding="utf-8"),
+    }
+
+
+@app.get("/llm.txt", response_class=PlainTextResponse)
+@app.get("/LLM.txt", response_class=PlainTextResponse)
+@app.get("/llms.txt", response_class=PlainTextResponse)
+async def llm_txt():
+    """Serve machine-readable LLM instructions for external agents."""
+    if not LLM_TXT_PATH.exists():
+        raise HTTPException(status_code=404, detail="LLM.txt not found")
+    return LLM_TXT_PATH.read_text(encoding="utf-8")
+
+
+# =============================================================================
+# METADATA ENDPOINTS
+# =============================================================================
+
+@app.get("/api/metadata/tables")
+async def metadata_tables():
+    """List discoverable warehouse tables and basic metadata."""
+    try:
+        return {"success": True, "catalog": get_tables_catalog()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/tables/{table_ref:path}/preview")
+async def metadata_table_preview(table_ref: str, limit: int = 20):
+    """Get preview rows for one fully qualified table (schema.table)."""
+    try:
+        preview = get_table_preview(table_ref, limit=limit)
+        if preview is None:
+            raise HTTPException(status_code=404, detail=f"Table not found or not allowed: {table_ref}")
+        return {"success": True, "preview": preview}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/tables/{table_ref:path}")
+async def metadata_table_detail(table_ref: str):
+    """Get detailed metadata for one fully qualified table (schema.table)."""
+    try:
+        metadata = get_table_metadata(table_ref)
+        if metadata is None:
+            raise HTTPException(status_code=404, detail=f"Table not found or not allowed: {table_ref}")
+        return {"success": True, "table": metadata}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/metrics")
+async def metadata_metrics():
+    """List likely metric objects discovered from warehouse models."""
+    try:
+        return {"success": True, "catalog": get_metrics_catalog()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/lineage/{object_name}")
+async def metadata_lineage(object_name: str):
+    """Get lightweight lineage hints for a business object/model."""
+    try:
+        return {"success": True, "lineage": get_lineage_for_object(object_name)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/search")
+async def metadata_search(q: str, limit: int = 25):
+    """Search tables and metrics in the central metadata catalog."""
+    try:
+        return {"success": True, "search": search_metadata_catalog(query=q, limit=limit)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/health")
+async def metadata_health():
+    """Get central catalog health and freshness summary."""
+    try:
+        return {"success": True, "health": get_metadata_catalog_health()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/objects")
+async def metadata_objects(
+    search: str = "",
+    domain: str | None = None,
+    schema: str | None = None,
+    kind: str | None = None,
+    owner: str | None = None,
+    certified_only: bool = False,
+    sort_key: str = "table_key",
+    sort_dir: str = "asc",
+    page: int = 1,
+    page_size: int = 50,
+):
+    """List metadata objects with filtering, sorting, and pagination."""
+    try:
+        return {
+            "success": True,
+            "objects": list_metadata_objects(
+                search=search,
+                domain=domain,
+                schema=schema,
+                kind=kind,
+                owner=owner,
+                certified_only=certified_only,
+                sort_key=sort_key,
+                sort_dir=sort_dir,
+                page=page,
+                page_size=page_size,
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/metadata/llm-context")
+async def metadata_llm_context(
+    table_limit: int = 200,
+    metric_limit: int = 200,
+    column_limit: int = 2000,
+):
+    """Get compact catalog context for LLM and agent workflows."""
+    try:
+        return {
+            "success": True,
+            "context": get_llm_context(
+                limit_tables=table_limit,
+                limit_metrics=metric_limit,
+                limit_columns=column_limit,
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================================
 # TOOLS ENDPOINTS
 # =============================================================================
@@ -105,13 +272,19 @@ async def run_schema_introspection():
 
 class CustomQueryParams(BaseModel):
     sql: str
+    actor: str | None = None
+    request_id: str | None = None
 
 
 @app.post("/api/reports/query")
 async def run_custom_query(params: CustomQueryParams):
     """Execute a custom SQL query directly."""
     try:
-        result = execute_query.invoke({"sql": params.sql})
+        result = run_governed_query(
+            sql=params.sql,
+            actor=params.actor or "api.reports.query",
+            request_id=params.request_id,
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
