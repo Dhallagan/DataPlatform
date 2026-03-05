@@ -5,23 +5,8 @@ import Toolbar from '@/components/Toolbar';
 import ConversationsSidebar from '@/components/ConversationsSidebar';
 import ChatPanel from '@/components/ChatPanel';
 import ResultsPanel from '@/components/ResultsPanel';
-import { Message, ToolResult } from '@/lib/api';
-
-export interface QueryResult {
-  sql?: string;
-  toolName: string;
-  toolArgs: Record<string, unknown>;
-  result: ToolResult['result'];
-  timestamp: Date;
-}
-
-export interface Conversation {
-  id: string;
-  title: string;
-  preview: string;
-  timestamp: Date;
-  messages: Message[];
-}
+import { Message } from '@/lib/api';
+import { Conversation, QueryResult } from '@/lib/chatTypes';
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);

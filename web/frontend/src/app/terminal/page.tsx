@@ -629,7 +629,6 @@ export default function BusinessTerminalOverviewPage() {
       { key: 'fn-short-ov-lm', label: 'OV.LM', hint: 'Function shortcut · Overview last month', action: () => router.push('/terminal') },
       { key: 'fn-short-ov-this', label: 'OV.THIS', hint: 'Function shortcut · Overview current month', action: () => router.push('/terminal') },
       { key: 'fn-short-ov-m2', label: 'OV.M-2', hint: 'Function shortcut · Overview two months ago', action: () => router.push('/terminal') },
-      { key: 'fn-short-bs-lm', label: 'BS.LM', hint: 'Function shortcut · Snapshot last month', action: () => router.push('/terminal') },
       { key: 'fn-short-meta-schema', label: 'META.SCHEMA', hint: 'Function shortcut · Metadata schema panel', action: () => router.push('/terminal/meta?panel=schema') },
       { key: 'fn-short-meta-dict', label: 'META.DICT', hint: 'Function shortcut · Metadata dictionary panel', action: () => router.push('/terminal/meta?panel=dictionary') },
       { key: 'fn-short-cus', label: 'CUS.<org>', hint: 'Function shortcut · Customer drill', action: () => router.push('/customers') },
@@ -774,7 +773,7 @@ export default function BusinessTerminalOverviewPage() {
             onFocus={() => setShowTypeahead(true)}
             onBlur={() => setTimeout(() => setShowTypeahead(false), 120)}
             onKeyDown={onSearchKeyDown}
-            placeholder="Type function: OV, OV.LM, OV.THIS, SC, GTM, FIN, PROD, OPS, META, CUS.<org>"
+            placeholder="Type function: OV, OV.LM, OV.THIS, SC, GTM, FIN, OPS, META, ABOUT, CUS.<org>"
           />
           {activeFunction ? (
             <div className="mt-1 rounded border border-border bg-surface-primary px-2 py-1 text-[11px] text-content-secondary">

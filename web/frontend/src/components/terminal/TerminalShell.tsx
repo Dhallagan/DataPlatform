@@ -250,7 +250,6 @@ function DefaultTerminalSearch() {
       { key: 'fn-short-ov-lm', label: 'OV.LM', hint: 'Function shortcut · Overview last month', href: '/terminal' },
       { key: 'fn-short-ov-this', label: 'OV.THIS', hint: 'Function shortcut · Overview current month', href: '/terminal' },
       { key: 'fn-short-ov-m2', label: 'OV.M-2', hint: 'Function shortcut · Overview two months ago', href: '/terminal' },
-      { key: 'fn-short-bs-lm', label: 'BS.LM', hint: 'Function shortcut · Snapshot last month', href: '/terminal' },
       { key: 'fn-short-meta-schema', label: 'META.SCHEMA', hint: 'Function shortcut · Metadata schema panel', href: '/terminal/meta?panel=schema' },
       { key: 'fn-short-meta-dict', label: 'META.DICT', hint: 'Function shortcut · Metadata dictionary panel', href: '/terminal/meta?panel=dictionary' },
       { key: 'fn-short-cus', label: 'CUS.<org>', hint: 'Function shortcut · Customer drill', href: '/customers' },
@@ -397,7 +396,7 @@ function DefaultTerminalSearch() {
         onFocus={() => setShowTypeahead(true)}
         onBlur={() => setTimeout(() => setShowTypeahead(false), 120)}
         onKeyDown={onKeyDown}
-        placeholder="Type: OV, OV.LM, OV.THIS, SC, GTM, FIN, PROD, OPS, META, CUS.<org>  (/ to focus)"
+        placeholder="Type: OV, OV.LM, OV.THIS, SC, GTM, FIN, OPS, META, ABOUT, CUS.<org>  (/ to focus)"
       />
       {activeFunction ? (
         <div className="mt-1 rounded border border-border bg-surface-primary px-2 py-1 text-[11px] text-content-secondary">

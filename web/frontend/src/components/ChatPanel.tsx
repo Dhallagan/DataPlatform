@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import MessageBubble from './MessageBubble';
 import { sendMessage, Message } from '@/lib/api';
-import { QueryResult } from '@/app/page';
+import { QueryResult } from '@/lib/chatTypes';
 
 interface ChatPanelProps {
   messages: Message[];

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { QueryResult } from '@/app/page';
+import { QueryResult } from '@/lib/chatTypes';
 
 interface ResultsPanelProps {
   currentResult: QueryResult | null;

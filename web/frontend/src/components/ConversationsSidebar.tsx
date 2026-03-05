@@ -1,6 +1,6 @@
 'use client';
 
-import { Conversation } from '@/app/page';
+import { Conversation } from '@/lib/chatTypes';
 
 interface ConversationsSidebarProps {
   conversations: Conversation[];

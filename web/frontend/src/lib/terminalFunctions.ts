@@ -6,7 +6,7 @@ export interface TerminalFunctionArg {
 }
 
 export interface TerminalFunctionSpec {
-  code: 'OV' | 'SC' | 'BS' | 'GTM' | 'FIN' | 'PROD' | 'OPS' | 'CUS' | 'META';
+  code: 'OV' | 'SC' | 'BS' | 'GTM' | 'FIN' | 'PROD' | 'OPS' | 'CUS' | 'META' | 'ABOUT';
   aliases: string[];
   title: string;
   route: string;
@@ -134,6 +134,18 @@ export const TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = [
     args: [
       { name: 'organization_id', required: true, description: 'Target organization id or a name fragment.', example: 'CUS org_1234' },
     ],
+  },
+  {
+    code: 'ABOUT',
+    aliases: ['ABT', 'ARCH'],
+    title: 'Architecture Decisions',
+    route: '/about',
+    usage: 'ABOUT',
+    summary: 'Read architecture decisions and implementation rationale.',
+    primaryModel: 'Architecture record',
+    objective: 'Provide one narrative source of truth for why this system is structured this way.',
+    output: 'Decision essay, tradeoffs, and operating best practices.',
+    args: [],
   },
 ];
 
