@@ -35,7 +35,7 @@ DEFAULT_TABLE_THRESHOLDS = {
     "core.daily_kpis": 24.0,
     "core.metric_spine": 24.0,
     "core.metric_registry": 24.0,
-    "fin.mrr": 24.0,
+    "fin.snap_mrr": 24.0,
 }
 
 

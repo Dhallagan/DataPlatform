@@ -125,55 +125,55 @@ This rebuilds:
 | `daily_kpis` | 1 row per date | Executive KPI rollup | `date` |
 | `metric_spine` | 1 row per organization per day | Canonical daily metric spine | `metric_date`, `organization_id` |
 
-### Growth (`growth`)
+### GTM (`gtm`)
 
 | Object | Grain | Description | Primary keys / key columns |
 |---|---|---|---|
-| `growth_daily` | 1 row per date | Daily growth/activation metrics | `metric_date` |
-| `growth_kpis` | 1 row per as-of date | 30-day growth KPI summary | `as_of_date` |
-| `cohort_retention` | 1 row per cohort-week x offset | Weekly retention matrix | `cohort_week`, `weeks_since_signup` |
-| `active_organizations` | 1 row per organization | 30-day active organization segmentation | `organization_id`, `activity_tier` |
-| `signal_thresholds` | 1 row per signal threshold | Growth workflow threshold config | `signal_name`, `threshold_name` |
+| `agg_growth_daily` | 1 row per date | Daily growth/activation metrics | `metric_date` |
+| `kpi_growth` | 1 row per as-of date | 30-day growth KPI summary | `as_of_date` |
+| `agg_cohort_retention_weekly` | 1 row per cohort-week x offset | Weekly retention matrix | `cohort_week`, `weeks_since_signup` |
+| `agg_active_organizations` | 1 row per organization | 30-day active organization segmentation | `organization_id`, `activity_tier` |
+| `cfg_signal_thresholds` | 1 row per signal threshold | Growth workflow threshold config | `signal_name`, `threshold_name` |
 | `signal_trial_conversion_risk_daily` | 1 row per signal | Trial conversion risk output | `signal_id`, `organization_id`, `signal_score` |
 | `growth_task_queue` | 1 row per task | Growth action queue | `task_id`, `signal_id`, `task_status`, `priority` |
 | `action_log` | 1 row per action | Auditable workflow action log | `action_id`, `signal_id`, `task_id`, `organization_id` |
-| `gtm_funnel_daily` | 1 row per date | GTM funnel KPIs | `metric_date` |
-| `gtm_pipeline_snapshot` | 1 row per as-of date | Pipeline state snapshot | `as_of_date` |
-| `gtm_lifecycle_accounts` | 1 row per account | Account lifecycle spine | `account_id`, `lifecycle_stage` |
-| `gtm_campaign_channel_performance` | 1 row per campaign x month | Campaign/channel attribution | `metric_month`, `campaign_id` |
-| `gtm_unit_economics_monthly` | 1 row per month | CAC/retention/LTV proxy metrics | `metric_month` |
+| `agg_funnel_daily` | 1 row per date | GTM funnel KPIs | `metric_date` |
+| `snap_pipeline_daily` | 1 row per as-of date | Pipeline state snapshot | `as_of_date` |
+| `dim_lifecycle_accounts` | 1 row per account | Account lifecycle spine | `account_id`, `lifecycle_stage` |
+| `agg_campaign_channel_monthly` | 1 row per campaign x month | Campaign/channel attribution | `metric_month`, `campaign_id` |
+| `agg_unit_economics_monthly` | 1 row per month | CAC/retention/LTV proxy metrics | `metric_month` |
 
-### Product (`product`)
+### Product (`pro`)
 
 | Object | Grain | Description | Primary keys / key columns |
 |---|---|---|---|
-| `daily_sessions` | 1 row per organization per day | Session aggregates | `organization_id`, `session_date` |
-| `product_daily` | 1 row per date | Product engagement/failure KPIs | `metric_date` |
-| `product_kpis` | 1 row per as-of date | 30-day product KPI summary | `as_of_date` |
+| `agg_sessions_daily` | 1 row per organization per day | Session aggregates | `organization_id`, `session_date` |
+| `agg_product_daily` | 1 row per date | Product engagement/failure KPIs | `metric_date` |
+| `kpi_product` | 1 row per as-of date | 30-day product KPI summary | `as_of_date` |
 
 ### Engineering (`eng`)
 
 | Object | Grain | Description | Primary keys / key columns |
 |---|---|---|---|
-| `engineering_daily` | 1 row per date | Reliability + latency daily metrics | `metric_date` |
-| `engineering_kpis` | 1 row per as-of date | 30-day engineering KPI summary | `as_of_date` |
+| `agg_engineering_daily` | 1 row per date | Reliability + latency daily metrics | `metric_date` |
+| `kpi_engineering` | 1 row per as-of date | 30-day engineering KPI summary | `as_of_date` |
 
 ### Operations (`ops`)
 
 | Object | Grain | Description | Primary keys / key columns |
 |---|---|---|---|
-| `ops_daily` | 1 row per date | Capacity + utilization daily metrics | `metric_date` |
-| `ops_kpis` | 1 row per as-of date | 30-day ops KPI summary | `as_of_date` |
+| `agg_ops_daily` | 1 row per date | Capacity + utilization daily metrics | `metric_date` |
+| `kpi_ops` | 1 row per as-of date | 30-day ops KPI summary | `as_of_date` |
 
-### Finance (`finance`)
+### Finance (`fin`)
 
 | Object | Grain | Description | Primary keys / key columns |
 |---|---|---|---|
-| `mrr` | 1 row per as-of date | Current MRR snapshot | `as_of_date` |
-| `monthly_revenue` | 1 row per organization per month | Revenue aggregation | `organization_id`, `revenue_month` |
-| `ramp_spend_monthly` | 1 row per organization x month x source | Monthly spend by source | `organization_id`, `spend_month`, `spend_source` |
-| `ramp_vendor_spend_monthly` | 1 row per organization x vendor x month | Vendor-level monthly spend | `organization_id`, `spend_month`, `vendor_name` |
-| `finance_budget_vs_actual_monthly` | 1 row per organization per month | Budget vs actual with AP liability | `organization_id`, `budget_month` |
+| `snap_mrr` | 1 row per as-of date | Current MRR snapshot | `as_of_date` |
+| `agg_revenue_monthly` | 1 row per organization per month | Revenue aggregation | `organization_id`, `revenue_month` |
+| `agg_spend_monthly` | 1 row per organization x month x source | Monthly spend by source | `organization_id`, `spend_month`, `spend_source` |
+| `agg_vendor_spend_monthly` | 1 row per organization x vendor x month | Vendor-level monthly spend | `organization_id`, `spend_month`, `vendor_name` |
+| `agg_budget_vs_actual_monthly` | 1 row per organization per month | Budget vs actual with AP liability | `organization_id`, `budget_month` |
 
 ## Metadata and Metric Governance Tables (`core`)
 

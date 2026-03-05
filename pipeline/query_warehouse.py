@@ -76,7 +76,7 @@ for db, schema, count in schemas:
     print(f"  {db}.{schema:30} {count:>3} objects")
 
 # MRR Summary
-print("\nMRR SUMMARY (fin.mrr)")
+print("\nMRR SUMMARY (fin.snap_mrr)")
 print("-" * 70)
 try:
     mrr = conn.execute("""
@@ -85,7 +85,7 @@ try:
             total_mrr_usd,
             total_paying_customers,
             arpu_usd
-        FROM fin.mrr
+        FROM fin.snap_mrr
         LIMIT 1
     """).fetchdf()
     print(mrr.to_string(index=False))
