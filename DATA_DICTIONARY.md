@@ -105,16 +105,16 @@ This rebuilds:
 | `dim_users` | Dimension | 1 row per user | Join-safe user dimension | `user_id`, `organization_id` |
 | `fct_browser_sessions` | Fact | 1 row per browser session | Canonical session fact (alias on `sessions.sql`) | `session_id`, `organization_id`, `status` |
 | `bridge_organization_activity` | Bridge | 1 row per organization | Organization session aggregates | `organization_id`, `total_sessions` |
-| `fct_events` | Fact | 1 row per event | Canonical event fact | `event_id`, `session_id` |
+| `fct_browser_events` | Fact | 1 row per event | Canonical event fact | `event_id`, `session_id` |
 | `fct_subscriptions` | Fact | 1 row per subscription state row | Canonical subscription fact | `subscription_id`, `organization_id`, `subscription_status` |
 | `dim_time` | Dimension | 1 row per day | Daily calendar dimension | `date_day`, `month_start` |
-| `dim_finance_departments` | Dimension | 1 row per department | Department metadata | `department_id`, `organization_id` |
-| `dim_finance_vendors` | Dimension | 1 row per vendor | Vendor metadata | `vendor_id` |
-| `dim_finance_cards` | Dimension | 1 row per card | Card metadata | `card_id` |
-| `fct_finance_transactions` | Fact | 1 row per transaction | Card transaction fact | `transaction_id`, `transaction_month` |
-| `fct_finance_reimbursements` | Fact | 1 row per reimbursement | Reimbursement fact | `reimbursement_id`, `submitted_month` |
-| `fct_finance_bills` | Fact | 1 row per bill | AP bill fact | `bill_id`, `bill_month` |
-| `fct_finance_bill_payments` | Fact | 1 row per payment | AP payment fact | `bill_payment_id` |
+| `dim_fin_departments` | Dimension | 1 row per department | Department metadata | `department_id`, `organization_id` |
+| `dim_fin_vendors` | Dimension | 1 row per vendor | Vendor metadata | `vendor_id` |
+| `dim_fin_cards` | Dimension | 1 row per card | Card metadata | `card_id` |
+| `fct_fin_transactions` | Fact | 1 row per transaction | Card transaction fact | `transaction_id`, `transaction_month` |
+| `fct_fin_reimbursements` | Fact | 1 row per reimbursement | Reimbursement fact | `reimbursement_id`, `submitted_month` |
+| `fct_fin_bills` | Fact | 1 row per bill | AP bill fact | `bill_id`, `bill_month` |
+| `fct_fin_bill_payments` | Fact | 1 row per payment | AP payment fact | `bill_payment_id` |
 
 ## Domain Analytics Models
 
