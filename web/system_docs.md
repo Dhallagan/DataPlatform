@@ -335,13 +335,13 @@ Primary downstream objects for BI:
 
 - `core.metric_spine` (canonical org/day metric table)
 - `core.daily_kpis`
-- `finance.mrr`
-- `growth.active_organizations`
+- `fin.snap_mrr`
+- `gtm.agg_active_organizations`
 - domain KPI snapshots:
-  - `growth.growth_kpis`
-  - `product.product_kpis`
-  - `eng.engineering_kpis`
-  - `ops.ops_kpis`
+  - `gtm.kpi_growth`
+  - `pro.kpi_product`
+  - `eng.kpi_engineering`
+  - `ops.kpi_ops`
 
 ## 12) Troubleshooting
 
