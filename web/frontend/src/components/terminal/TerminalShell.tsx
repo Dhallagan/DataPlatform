@@ -496,7 +496,16 @@ export default function TerminalShell({ title, subtitle, active, children, searc
 
             <div className="w-full max-w-xl">{search || <DefaultTerminalSearch />}</div>
 
-            <div className="flex shrink-0 items-center gap-2">{headerMeta || <Badge variant="accent">LIVE</Badge>}</div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Link
+                href="/chat"
+                prefetch={false}
+                className="rounded border border-border bg-surface-secondary px-2 py-1 text-xs font-medium text-content-primary hover:bg-surface-tertiary"
+              >
+                Chat
+              </Link>
+              {headerMeta || <Badge variant="accent">LIVE</Badge>}
+            </div>
           </div>
 
           {children}
