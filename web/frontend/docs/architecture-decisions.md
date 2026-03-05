@@ -1,109 +1,146 @@
-# BrowserBase Architecture Decisions
+# BrowserBase: Replication, Warehouse, and Terminal Mart Decisions
 
-This document explains the design choices behind the current BrowserBase analytics platform. It is intentionally opinionated: the goal is not to describe every possible architecture, but to explain why this one exists, what problems it solves, and how to keep it healthy as the system grows.
+This note is intentionally focused on three things:
 
-## 1) Product and Workflow Decision: Terminal-First
+1. Why we chose the replication pipeline shape.
+2. Why we modeled the warehouse in Bronze -> Silver -> Gold layers.
+3. How Terminal became a dedicated mart instead of a UI over random tables.
 
-We moved to a terminal-first analytics UX because our core users do not think in terms of static dashboard tabs; they think in terms of operating questions:
+## What Problem We Were Solving
 
-- "What changed this month?"
-- "Which domain owns the regression?"
-- "Which customers are impacted?"
+We needed an operating system for the business, not just a chat toy or a dashboard pile.
 
-The terminal command model (`OV`, `SC`, `GTM`, `FIN`, `OPS`, `CUS`, `META`, `ABOUT`) makes navigation and intent explicit. It reduces click-path ambiguity and creates a shared language between operators, analysts, and engineers. When someone says "run `OV` then `CUS <id>`," that is both product behavior and team process.
+That meant:
 
-## 2) Architecture Boundary Decision: Split Frontend and Backend
+- Ingesting source data with low friction.
+- Preserving source truth before transforming.
+- Building stable, governed marts for decisions.
+- Serving those marts in a fast terminal workflow.
 
-We kept a clear split:
+## Replication Pipeline Decisions
 
-- `web/frontend` (Next.js): UX, routing, terminal affordances, and request orchestration.
-- `web/backend` (FastAPI): governed query execution, metadata APIs, and operational endpoints.
+### 1) Replicate Source-Aligned Data First
 
-This boundary makes ownership clear and keeps high-risk logic (query validation, warehouse access, API keys, governance rules) server-side. The frontend remains fast to iterate without leaking data-access controls into browser code.
+We intentionally replicate raw-ish source data first, before business transforms.
 
-## 3) API Routing Decision: Frontend Rewrite to Backend
+Why:
 
-The frontend uses a rewrite (`/api/:path* -> NEXT_PUBLIC_BACKEND_URL/api/:path*`). This gives us:
+- Faster onboarding of new sources.
+- Easier debugging (you can inspect what source actually sent).
+- Lower risk of silent logic drift during ingestion.
 
-- a single-origin browser experience (fewer CORS/auth headaches),
-- stable frontend code (`fetch('/api/...')` everywhere),
-- deploy flexibility (swap backend URL per environment without changing app code).
+Tradeoff:
 
-This is why local dev and cloud deployment both work with the same frontend fetch paths.
+- Raw layers are noisy and not analytics-ready.
+- We accept that because cleanup belongs in dbt, not in ingestion scripts.
 
-## 4) Data Modeling Decision: Canonical Terminal Models
+### 2) Keep Pipeline Tasks Explicit and Scriptable
 
-We standardized on explicit terminal-facing marts (`term.*` and scorecard models) rather than ad hoc model reads from many places. This protects consistency:
+We kept ingestion and orchestration in explicit scripts (`pipeline/*`) and shell workflows.
 
-- `term.business_snapshot_monthly` for overview board,
-- domain-aligned terminal datasets for GTM/Finance/Ops/Product,
-- canonical scorecard outputs for executive review.
+Why:
 
-Result: every terminal surface maps to explicit contract models with known grain and expected fields. The UI is predictable because model semantics are predictable.
+- You can run pieces independently when incidents happen.
+- Easier operational debugging than hiding everything in one monolithic job.
+- Works in both local and deployed contexts.
 
-## 5) Governance Decision: Read-Only Query Guardrails
+### 3) Treat Freshness and Contracts as First-Class
 
-Custom query execution is intentionally constrained in backend validation:
+We added checks around freshness/schema contracts, not just row movement.
 
-- one statement only,
-- read-only `SELECT`,
-- schema allowlists and auditing.
+Why:
 
-This was a conscious tradeoff: we accept less SQL flexibility in exchange for safer operations and clearer observability. We also learned to design frontend queries to fit those rules (for example, avoiding blocked patterns in runtime endpoints and favoring explicit `SELECT` shapes).
+- “Pipeline succeeded” is meaningless if key tables are stale or shape-shifted.
+- Monitoring is part of the product, not an afterthought.
 
-## 6) Reliability Decision: Graceful Degradation in the UI
+## Warehouse Modeling Decisions
 
-Terminal pages use safe query wrappers and explicit empty states so the interface does not crash when data is missing, delayed, or partially unavailable. This is not "hide all errors"; it is "preserve operator flow under imperfect data conditions."
+### 1) Layered Architecture: Bronze -> Silver -> Gold
 
-The companion principle is to still surface context (empty notices, stale status, monitoring views) so users know what happened and what to do next.
+We standardized layers:
 
-## 7) Discoverability Decision: One Function Registry
+- **Bronze (`010_bronze`)**: source-aligned staging.
+- **Silver (`020_silver`)**: conformed entities and cleaned facts/dims.
+- **Gold (`030_gold`)**: business-ready marts and KPI surfaces.
 
-We centralized function definitions in `terminalFunctions.ts` and drive multiple UI surfaces from it:
+Why:
 
-- command parsing,
-- typeahead suggestions,
-- sidebar function buttons,
-- cheatsheet listings.
+- Clear semantic boundary between raw, conformed, and decision-grade data.
+- Prevents business logic duplication.
+- Makes refactors safer because contracts are layer-scoped.
 
-This avoids drift. A function should not exist in one place and disappear in another. We already used this pattern to hide certain functions (`PROD`, `BS`) from visible UI while keeping parser behavior deliberate and explicit.
+### 2) Build Canonical Domain Marts
 
-## 8) Navigation Decision: Terminal as Default Home
+We built/maintained domain marts for GTM, Finance, Ops, Product, and executive metrics.
 
-We changed `/` to redirect to `/terminal`, while preserving chat at `/chat` with a direct button from terminal header. This reflects actual usage priorities:
+Why:
 
-- primary workflow starts in operations/decision mode,
-- conversational analysis remains one click away.
+- Business questions should hit stable marts, not unstable intermediate models.
+- Domain ownership becomes clearer.
+- Performance is better when repeated logic is materialized once.
 
-The architecture supports both without forcing users into one mental model.
+### 3) Test Grain and Metric Contracts
 
-## 9) Deployment Decision: Monorepo Subdirectory Deploy
+We added tests for uniqueness, constraints, and consistency in key terminal-facing marts.
 
-We deploy directly from the `DataPlatform` repo with subdirectory roots:
+Why:
 
-- Vercel root: `web/frontend`,
-- Render root: `web/backend`.
+- A terminal experience is only as trustworthy as metric contracts.
+- Catching grain breaks early prevents decision errors later.
 
-This kept existing production URLs while avoiding repo duplication. It also means platform changes and data-model changes can ship together when needed, while still preserving explicit deploy roots.
+## How Terminal Became a Mart
 
-## 10) Documentation Decision: Decision Narrative, Not Just Specs
+This is the core design move.
 
-We added this decision narrative because architecture quality decays when rationale is tribal knowledge. Specs tell you "what exists"; decision docs tell you "why this exists." Teams need both.
+### Before
 
-Use this document as the operator's guide for future changes:
+Terminal-like pages queried mixed models directly, with ad hoc SQL patterns per page.
 
-- If a change improves local convenience but breaks model contracts, reject it.
-- If a change adds a new surface, wire it through the shared function registry.
-- If a change touches query behavior, validate against backend governance constraints.
-- If a change affects home routing, preserve direct access to both terminal and chat.
+Problems:
 
-## Implementation Best Practices We Followed
+- Logic drift between pages.
+- Fragile query behavior.
+- Hard to guarantee consistent definitions.
 
-- Keep one source of truth for navigable commands.
-- Prefer explicit model contracts over UI-derived semantics.
-- Fail soft in UI, fail strict in data/governance boundaries.
-- Deploy from one repo with explicit service roots.
-- Preserve user-facing links during migrations (change internals before URLs).
-- Document architectural decisions near the code, not in private notes.
+### After
 
-If you continue extending this system, treat these principles as constraints, not suggestions. They are the reasons this architecture remains understandable under rapid iteration.
+We established terminal-specific marts in Gold/Core metrics:
+
+- `term.business_snapshot_monthly`
+- `term.scorecard_daily`
+- `term.customer_daily`
+- `term.gtm_daily`
+- `term.finance_monthly`
+- `term.product_daily`
+- `term.exec_daily` (ops/reliability use cases)
+
+Then terminal functions (`OV`, `SC`, `GTM`, `FIN`, `OPS`, `CUS`, `META`, `ABOUT`) map to those stable marts.
+
+What this gave us:
+
+- Terminal is now a consumption layer over governed marts.
+- Every command has a model contract.
+- UI changes no longer require redefining business logic.
+
+## Why This Matters Operationally
+
+When leadership asks “what changed?”, we can answer from a known contract model.
+When product asks “which customers are impacted?”, we drill from terminal command to terminal mart to customer-level facts.
+When data quality shifts, monitoring and tests show us where trust degraded.
+
+In short: terminal UX is fast because warehouse contracts are strong.
+
+## Best Practices We Intentionally Followed
+
+- Source-aligned replication first; business logic later.
+- Keep transformation logic in dbt models, not ingestion code.
+- Enforce layered model semantics (Bronze/Silver/Gold).
+- Create dedicated decision marts for user workflows.
+- Map product commands to canonical marts.
+- Treat freshness, contracts, and drift monitoring as product requirements.
+
+## Practical Rule for Future Changes
+
+If a new terminal surface cannot name its canonical mart and grain in one sentence, it is not ready.
+
+The architecture works because commands, marts, and contracts stay aligned.
