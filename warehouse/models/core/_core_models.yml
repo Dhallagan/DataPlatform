@@ -145,13 +145,95 @@ models:
                 values: ['trialing', 'active', 'past_due', 'canceled']
 
   - name: dim_time
-    description: Canonical daily time dimension for date and month joins.
+    description: Canonical daily time dimension for fixed calendar week/month analysis and rolling windows.
+    time_spine:
+      standard_granularity_column: date_day
     columns:
       - name: date_day
+        description: Canonical date key at daily grain.
+        granularity: day
         tests:
           - not_null
           - unique
+      - name: date_id
+        description: Integer date key in YYYYMMDD format.
+        tests:
+          - not_null
+          - unique
+      - name: fixed_calendar_week_start
+        description: Start date of the fixed calendar week containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_week_end
+        description: End date of the fixed calendar week containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_week_id
+        description: ISO week key in YYYYWW format.
+        tests:
+          - not_null
+      - name: fixed_calendar_month_start
+        description: Start date of the fixed calendar month containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_month_end
+        description: End date of the fixed calendar month containing date_day.
+        tests:
+          - not_null
+      - name: fixed_calendar_month_id
+        description: Calendar month key in YYYYMM format.
+        tests:
+          - not_null
       - name: month_start
+        description: Month start date (same value as fixed_calendar_month_start).
+        tests:
+          - not_null
+      - name: quarter_start
+        description: Quarter start date.
+        tests:
+          - not_null
+      - name: year_start
+        description: Year start date.
+        tests:
+          - not_null
+      - name: year_number
+        description: Calendar year number.
+        tests:
+          - not_null
+      - name: month_number
+        description: Calendar month number (1-12).
+        tests:
+          - not_null
+      - name: day_of_month
+        description: Day of month number (1-31).
+        tests:
+          - not_null
+      - name: day_of_week
+        description: Day of week number (0=Sunday, 6=Saturday in DuckDB).
+        tests:
+          - not_null
+      - name: is_weekend
+        description: True when date_day falls on Saturday or Sunday.
+        tests:
+          - not_null
+      - name: rolling_7d_start
+        description: Inclusive trailing 7-day window start anchored to date_day.
+        tests:
+          - not_null
+      - name: rolling_7d_end
+        description: Inclusive trailing 7-day window end anchored to date_day.
+        tests:
+          - not_null
+      - name: rolling_28d_start
+        description: Inclusive trailing 28-day window start anchored to date_day.
+        tests:
+          - not_null
+      - name: rolling_28d_end
+        description: Inclusive trailing 28-day window end anchored to date_day.
+        tests:
+          - not_null
+      - name: _loaded_at
+        description: Model load timestamp.
         tests:
           - not_null
 

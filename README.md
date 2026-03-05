@@ -68,6 +68,13 @@ dbt seed --target duckdb --select metadata_lineage_catalog
 cd warehouse
 dbt run
 dbt test
+
+# dbt quality gate (fast path for CI/dev)
+dbt parse
+dbt test --select "test_type:unit"
+dbt test --select "tag:core tag:analytics"
+dbt ls --resource-type semantic_model
+dbt ls --resource-type metric
 ```
 
 ## Documentation Policy

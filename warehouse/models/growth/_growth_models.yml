@@ -245,3 +245,36 @@ models:
           - not_null:
               config:
                 where: "new_paid_customers > 0"
+
+unit_tests:
+  - name: growth_task_queue_applies_threshold_and_priority
+    model: growth_task_queue
+    given:
+      - input: ref('signal_thresholds')
+        rows:
+          - {signal_name: trial_conversion_risk, threshold_name: high_risk, threshold_value: 0.80, comparator: ">=", is_active: true}
+      - input: ref('signal_trial_conversion_risk_daily')
+        rows:
+          - {signal_id: sig-urgent, organization_id: org_1, organization_name: Org One, signal_score: 0.95, reason_code: no_recent_usage, triggered_at: "2026-02-20 10:00:00", expires_at: "2026-02-21 10:00:00"}
+          - {signal_id: sig-high, organization_id: org_2, organization_name: Org Two, signal_score: 0.82, reason_code: low_success_rate, triggered_at: "2026-02-20 10:00:00", expires_at: "2026-02-21 10:00:00"}
+          - {signal_id: sig-below, organization_id: org_3, organization_name: Org Three, signal_score: 0.79, reason_code: composite_risk, triggered_at: "2026-02-20 10:00:00", expires_at: "2026-02-21 10:00:00"}
+    expect:
+      rows:
+        - {task_id: growth_task|sig-urgent, signal_id: sig-urgent, organization_id: org_1, organization_name: Org One, queue_name: growth_trial_save, action_type: intervene_trial_conversion, priority: urgent, task_status: pending, reason_code: no_recent_usage, signal_score: 0.95, created_at: "2026-02-20 10:00:00", due_at: "2026-02-21 10:00:00"}
+        - {task_id: growth_task|sig-high, signal_id: sig-high, organization_id: org_2, organization_name: Org Two, queue_name: growth_trial_save, action_type: intervene_trial_conversion, priority: high, task_status: pending, reason_code: low_success_rate, signal_score: 0.82, created_at: "2026-02-20 10:00:00", due_at: "2026-02-21 10:00:00"}
+
+  - name: growth_task_queue_includes_exact_threshold_and_normal_priority
+    model: growth_task_queue
+    given:
+      - input: ref('signal_thresholds')
+        rows:
+          - {signal_name: trial_conversion_risk, threshold_name: high_risk, threshold_value: 0.80, comparator: ">=", is_active: true}
+      - input: ref('signal_trial_conversion_risk_daily')
+        rows:
+          - {signal_id: sig-threshold, organization_id: org_4, organization_name: Org Four, signal_score: 0.80, reason_code: composite_risk, triggered_at: "2026-02-22 09:30:00", expires_at: "2026-02-23 09:30:00"}
+          - {signal_id: sig-normal, organization_id: org_5, organization_name: Org Five, signal_score: 0.805, reason_code: low_success_rate, triggered_at: "2026-02-22 09:30:00", expires_at: "2026-02-23 09:30:00"}
+          - {signal_id: sig-excluded, organization_id: org_6, organization_name: Org Six, signal_score: 0.799, reason_code: trial_ending_soon, triggered_at: "2026-02-22 09:30:00", expires_at: "2026-02-23 09:30:00"}
+    expect:
+      rows:
+        - {task_id: growth_task|sig-threshold, signal_id: sig-threshold, organization_id: org_4, organization_name: Org Four, queue_name: growth_trial_save, action_type: intervene_trial_conversion, priority: high, task_status: pending, reason_code: composite_risk, signal_score: 0.80, created_at: "2026-02-22 09:30:00", due_at: "2026-02-23 09:30:00"}
+        - {task_id: growth_task|sig-normal, signal_id: sig-normal, organization_id: org_5, organization_name: Org Five, queue_name: growth_trial_save, action_type: intervene_trial_conversion, priority: high, task_status: pending, reason_code: low_success_rate, signal_score: 0.805, created_at: "2026-02-22 09:30:00", due_at: "2026-02-23 09:30:00"}

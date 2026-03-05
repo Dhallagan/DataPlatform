@@ -1,0 +1,322 @@
+version: 2
+
+semantic_models:
+  - name: metric_spine_semantic
+    description: Semantic model for daily organization-level platform health metrics.
+    model: ref('metric_spine')
+    defaults:
+      agg_time_dimension: metric_date
+    entities:
+      - name: organization
+        type: primary
+        expr: organization_id
+    dimensions:
+      - name: metric_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: is_active_org_day
+        type: categorical
+        expr: dau_org
+    measures:
+      - name: metric_spine_runs
+        description: Total browser runs.
+        agg: sum
+        expr: runs
+      - name: metric_spine_successful_runs
+        description: Successful browser runs.
+        agg: sum
+        expr: successful_runs
+      - name: metric_spine_total_events
+        description: Total platform events captured in runs.
+        agg: sum
+        expr: total_events
+      - name: metric_spine_total_errors
+        description: Total errors captured in runs.
+        agg: sum
+        expr: total_errors
+      - name: metric_spine_total_run_minutes
+        description: Total runtime minutes.
+        agg: sum
+        expr: total_run_minutes
+      - name: metric_spine_mrr_usd
+        description: Daily active subscription MRR.
+        agg: sum
+        expr: mrr_usd
+      - name: metric_spine_active_org_days
+        description: Count of organization-days with at least one run.
+        agg: sum
+        expr: dau_org
+
+  - name: daily_kpis_semantic
+    description: Semantic model for top-line daily executive KPIs.
+    model: ref('daily_kpis')
+    defaults:
+      agg_time_dimension: date
+    entities:
+      - name: kpi_date
+        type: primary
+        expr: date
+    dimensions:
+      - name: date
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: daily_kpis_total_sessions
+        description: Total sessions per day.
+        agg: sum
+        expr: total_sessions
+      - name: daily_kpis_successful_sessions
+        description: Successful sessions per day.
+        agg: sum
+        expr: successful_sessions
+      - name: daily_kpis_failed_sessions
+        description: Failed sessions per day.
+        agg: sum
+        expr: failed_sessions
+      - name: daily_kpis_new_organizations
+        description: New organizations per day.
+        agg: sum
+        expr: new_organizations
+      - name: daily_kpis_new_users
+        description: New users per day.
+        agg: sum
+        expr: new_users
+
+  - name: business_snapshot_monthly_semantic
+    description: Monthly organization business snapshot across GTM, finance, ops, and product.
+    model: ref('fct_business_snapshot_monthly')
+    defaults:
+      agg_time_dimension: month_start
+    entities:
+      - name: organization
+        type: primary
+        expr: organization_id
+    dimensions:
+      - name: month_start
+        type: time
+        type_params:
+          time_granularity: month
+      - name: organization_status
+        type: categorical
+      - name: current_plan_name
+        type: categorical
+    measures:
+      - name: snapshot_total_runs
+        agg: sum
+        expr: total_runs
+      - name: snapshot_successful_runs
+        agg: sum
+        expr: successful_runs
+      - name: snapshot_revenue_usd
+        agg: sum
+        expr: recognized_revenue_usd
+      - name: snapshot_spend_usd
+        agg: sum
+        expr: total_spend_usd
+      - name: snapshot_new_leads
+        agg: sum
+        expr: new_leads
+      - name: snapshot_new_opportunities
+        agg: sum
+        expr: new_opportunities
+      - name: snapshot_won_opportunities
+        agg: sum
+        expr: won_opportunities
+
+metrics:
+  - name: total_runs
+    label: Total Runs
+    description: Total browser runs over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_runs
+
+  - name: total_successful_runs
+    label: Total Successful Runs
+    description: Successful browser runs over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_successful_runs
+
+  - name: total_events
+    label: Total Events
+    description: Total run events over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_total_events
+
+  - name: total_errors
+    label: Total Errors
+    description: Total run errors over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_total_errors
+
+  - name: total_run_minutes
+    label: Total Run Minutes
+    description: Total run minutes over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_total_run_minutes
+
+  - name: total_mrr_usd
+    label: Total MRR USD
+    description: Total active-subscription MRR over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_mrr_usd
+
+  - name: active_org_days
+    label: Active Organization Days
+    description: Count of organization-days with activity.
+    type: simple
+    type_params:
+      measure: metric_spine_active_org_days
+
+  - name: run_success_rate
+    label: Run Success Rate
+    description: Ratio of successful runs to total runs.
+    type: ratio
+    type_params:
+      numerator: total_successful_runs
+      denominator: total_runs
+
+  - name: error_rate_per_event
+    label: Error Rate Per Event
+    description: Ratio of total errors to total events.
+    type: ratio
+    type_params:
+      numerator: total_errors
+      denominator: total_events
+
+  - name: mrr_per_active_org_day
+    label: MRR Per Active Org Day
+    description: Average MRR captured per active organization-day.
+    type: ratio
+    type_params:
+      numerator: total_mrr_usd
+      denominator: active_org_days
+
+  - name: run_failures
+    label: Run Failures
+    description: Number of failed runs.
+    type: derived
+    type_params:
+      expr: runs - successful_runs
+      metrics:
+        - name: total_runs
+          alias: runs
+        - name: total_successful_runs
+          alias: successful_runs
+
+  - name: kpi_total_sessions
+    label: KPI Total Sessions
+    description: Total sessions from the daily KPI model.
+    type: simple
+    type_params:
+      measure: daily_kpis_total_sessions
+
+  - name: kpi_successful_sessions
+    label: KPI Successful Sessions
+    description: Successful sessions from the daily KPI model.
+    type: simple
+    type_params:
+      measure: daily_kpis_successful_sessions
+
+  - name: kpi_failed_sessions
+    label: KPI Failed Sessions
+    description: Failed sessions from the daily KPI model.
+    type: simple
+    type_params:
+      measure: daily_kpis_failed_sessions
+
+  - name: kpi_new_organizations
+    label: KPI New Organizations
+    description: New organizations from the daily KPI model.
+    type: simple
+    type_params:
+      measure: daily_kpis_new_organizations
+
+  - name: kpi_new_users
+    label: KPI New Users
+    description: New users from the daily KPI model.
+    type: simple
+    type_params:
+      measure: daily_kpis_new_users
+
+  - name: kpi_session_success_rate
+    label: KPI Session Success Rate
+    description: Successful sessions divided by total sessions from daily KPIs.
+    type: ratio
+    type_params:
+      numerator: kpi_successful_sessions
+      denominator: kpi_total_sessions
+
+  - name: monthly_total_runs
+    label: Monthly Total Runs
+    type: simple
+    type_params:
+      measure: snapshot_total_runs
+
+  - name: monthly_successful_runs
+    label: Monthly Successful Runs
+    type: simple
+    type_params:
+      measure: snapshot_successful_runs
+
+  - name: monthly_revenue_usd
+    label: Monthly Revenue USD
+    type: simple
+    type_params:
+      measure: snapshot_revenue_usd
+
+  - name: monthly_spend_usd
+    label: Monthly Spend USD
+    type: simple
+    type_params:
+      measure: snapshot_spend_usd
+
+  - name: monthly_new_leads
+    label: Monthly New Leads
+    type: simple
+    type_params:
+      measure: snapshot_new_leads
+
+  - name: monthly_new_opportunities
+    label: Monthly New Opportunities
+    type: simple
+    type_params:
+      measure: snapshot_new_opportunities
+
+  - name: monthly_won_opportunities
+    label: Monthly Won Opportunities
+    type: simple
+    type_params:
+      measure: snapshot_won_opportunities
+
+  - name: monthly_run_success_rate
+    label: Monthly Run Success Rate
+    type: ratio
+    type_params:
+      numerator: monthly_successful_runs
+      denominator: monthly_total_runs
+
+  - name: monthly_pipeline_efficiency
+    label: Monthly Pipeline Efficiency
+    type: ratio
+    type_params:
+      numerator: monthly_won_opportunities
+      denominator: monthly_new_opportunities
+
+  - name: monthly_gross_margin_proxy_usd
+    label: Monthly Gross Margin Proxy USD
+    type: derived
+    type_params:
+      expr: revenue - spend
+      metrics:
+        - name: monthly_revenue_usd
+          alias: revenue
+        - name: monthly_spend_usd
+          alias: spend

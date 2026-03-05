@@ -135,3 +135,76 @@ models:
       - name: success_rate_pct
         tests:
           - not_null
+
+  - name: fct_terminal_exec_daily
+    description: Unified daily fact spine for executive business terminal widgets.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+
+  - name: fct_terminal_gtm_daily
+    description: Daily GTM fact spine for funnel, pipeline, and growth context.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+
+  - name: fct_terminal_product_daily
+    description: Daily product/ops reliability fact spine for terminal charts.
+    columns:
+      - name: metric_date
+        tests:
+          - not_null
+
+  - name: fct_terminal_finance_monthly
+    description: Monthly finance fact spine for budget, spend, and revenue quality widgets.
+    columns:
+      - name: metric_month
+        tests:
+          - not_null
+
+  - name: fct_terminal_customer_daily
+    description: Customer-level daily fact spine for revenue, risk, reliability, and queue drilldowns.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: metric_date
+        tests:
+          - not_null
+
+  - name: fct_business_snapshot_monthly
+    description: Canonical monthly organization snapshot across GTM, finance, ops, and product.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_organizations')
+                field: organization_id
+      - name: month_start
+        tests:
+          - not_null
+      - name: month_end
+        tests:
+          - not_null
+      - name: total_runs
+        tests:
+          - not_null
+      - name: successful_runs
+        tests:
+          - not_null
+      - name: recognized_revenue_usd
+        tests:
+          - not_null
+      - name: total_spend_usd
+        tests:
+          - not_null
+      - name: new_leads
+        tests:
+          - not_null
+      - name: new_opportunities
+        tests:
+          - not_null
