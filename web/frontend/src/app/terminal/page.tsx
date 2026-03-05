@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { Fragment, KeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { Fragment, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Badge,
@@ -11,11 +10,10 @@ import {
   EmptyState,
   LoadingState,
   SearchInput,
-  Select,
-  StatTile,
 } from '@/components/ui';
 import { num, pct, runWarehouseQuerySafe, usd } from '@/lib/warehouse';
 import TerminalShell from '@/components/terminal/TerminalShell';
+import { findTerminalFunction, resolveTerminalCommandHref, TERMINAL_FUNCTIONS, VISIBLE_TERMINAL_FUNCTIONS } from '@/lib/terminalFunctions';
 
 interface SummaryRow {
   revenue_usd: number;
@@ -83,6 +81,14 @@ interface Suggestion {
   action: () => void;
 }
 
+function isCustomerCommand(query: string): boolean {
+  return /^(?:cus|cust|cuss|customer)(?:[\s.]|$)/i.test(query.trim());
+}
+
+function extractCustomerQuery(query: string): string {
+  return query.trim().replace(/^(?:cus|cust|cuss|customer)(?:[\s.:-]+)?/i, '').trim().toLowerCase();
+}
+
 interface ChartSeries {
   name: string;
   color: string;
@@ -100,7 +106,6 @@ interface MatrixRow {
 }
 
 interface MonthScopedCombinedRow {
-  row_type: string;
   organization_id: string;
   organization_name: string;
   current_plan_name: string;
@@ -220,6 +225,7 @@ export default function BusinessTerminalOverviewPage() {
   const [isMonthLoading, setIsMonthLoading] = useState(false);
   const [isTrendLoading, setIsTrendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [monthNotice, setMonthNotice] = useState<string | null>(null);
 
   const [monthOptions, setMonthOptions] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
@@ -235,8 +241,60 @@ export default function BusinessTerminalOverviewPage() {
   const [showTypeahead, setShowTypeahead] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [activeDesk, setActiveDesk] = useState<FunctionDesk>('ALL');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedOrg = useMemo(() => orgRows.find((row) => row.organization_id === selectedOrgId) || null, [orgRows, selectedOrgId]);
+
+  const runFunctionCommand = (raw: string): boolean => {
+    const input = raw.trim();
+    if (!input) return false;
+    const [token, ...rest] = input.split(/\s+/);
+    const code = token.toUpperCase();
+    const arg = rest.join(' ').trim();
+    const normalizedArg = arg.toLowerCase();
+    if ((code === 'CUS' || code === 'CUST' || code === 'CUSS' || code === 'CUSTOMER') && normalizedArg) {
+      const ranked = orgRows
+        .map((row) => {
+          const orgId = row.organization_id.toLowerCase();
+          const orgName = row.organization_name.toLowerCase();
+          const score =
+            orgId === normalizedArg ? 0 :
+            orgName === normalizedArg ? 1 :
+            orgId.startsWith(normalizedArg) ? 2 :
+            orgName.startsWith(normalizedArg) ? 3 :
+            orgId.includes(normalizedArg) ? 4 :
+            orgName.includes(normalizedArg) ? 5 :
+            99;
+          return { row, score };
+        })
+        .filter((item) => item.score < 99)
+        .sort((a, b) => a.score - b.score);
+      const match = ranked[0]?.row;
+      if (match) {
+        router.push(`/customers/${match.organization_id}`);
+        return true;
+      }
+    }
+    if ((code === 'CUS' || code === 'CUST' || code === 'CUSS' || code === 'CUSTOMER') && !normalizedArg) {
+      router.push('/customers');
+      return true;
+    }
+    if ((code === 'CUS' || code === 'CUST' || code === 'CUSS' || code === 'CUSTOMER') && normalizedArg) {
+      const direct = orgRows.find((row) => {
+        const orgId = row.organization_id.toLowerCase();
+        const orgName = row.organization_name.toLowerCase();
+        return orgId === normalizedArg || orgName.includes(normalizedArg);
+      });
+      if (direct) {
+        router.push(`/customers/${direct.organization_id}`);
+        return true;
+      }
+    }
+    const href = resolveTerminalCommandHref(input);
+    if (!href) return false;
+    router.push(href);
+    return true;
+  };
 
   useEffect(() => {
     async function loadBase() {
@@ -245,7 +303,7 @@ export default function BusinessTerminalOverviewPage() {
       try {
         const monthsRaw = await runWarehouseQuerySafe(`
           SELECT DISTINCT month_start
-          FROM core.fct_business_snapshot_monthly
+          FROM term.business_snapshot_monthly
           ORDER BY month_start DESC
           LIMIT 18
         `);
@@ -254,13 +312,16 @@ export default function BusinessTerminalOverviewPage() {
           .map((row) => String(row.month_start ?? '').slice(0, 10))
           .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
         if (!months.length) {
-          setError('No monthly snapshot rows found in core.fct_business_snapshot_monthly.');
+          setError('No monthly snapshot rows found in term.business_snapshot_monthly.');
           setIsLoading(false);
           return;
         }
 
         setMonthOptions(months);
-        setSelectedMonth(months[0]);
+        const monthParam = new URLSearchParams(window.location.search).get('month') || '';
+        const monthPrefix = /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : monthParam.slice(0, 7);
+        const matchedMonth = monthPrefix ? months.find((month) => month.startsWith(monthPrefix)) : undefined;
+        setSelectedMonth(matchedMonth || months[0]);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load overview data.');
       } finally {
@@ -284,7 +345,7 @@ export default function BusinessTerminalOverviewPage() {
             SUM(successful_runs) AS successful_runs,
             SUM(new_opportunities) AS new_opportunities,
             SUM(won_opportunities) AS won_opportunities
-          FROM core.fct_business_snapshot_monthly
+          FROM term.business_snapshot_monthly
           GROUP BY 1
           ORDER BY month_start DESC
           LIMIT 12
@@ -316,11 +377,27 @@ export default function BusinessTerminalOverviewPage() {
       const monthKey = selectedMonth.slice(0, 10);
       if (!monthKey || !/^\d{4}-\d{2}-\d{2}$/.test(monthKey)) return;
       setIsMonthLoading(true);
+      setMonthNotice(null);
       setSelectedOrgId('');
       setOrgHistory([]);
       try {
-        const combinedRaw = await runWarehouseQuerySafe(`
-          WITH month_slice AS (
+        const [summaryRaw, orgRowsRaw] = await Promise.all([
+          runWarehouseQuerySafe(`
+            SELECT
+              SUM(recognized_revenue_usd) AS recognized_revenue_usd,
+              SUM(total_spend_usd) AS total_spend_usd,
+              SUM(total_runs) AS total_runs,
+              SUM(successful_runs) AS successful_runs,
+              SUM(new_leads) AS new_leads,
+              SUM(new_opportunities) AS new_opportunities,
+              SUM(won_opportunities) AS won_opportunities,
+              SUM(pipeline_open_usd) AS pipeline_open_usd,
+              SUM(mrr_usd) AS mrr_usd,
+              SUM(ap_open_usd) AS ap_open_usd
+            FROM term.business_snapshot_monthly
+            WHERE month_start = DATE '${monthKey}'
+          `),
+          runWarehouseQuerySafe(`
             SELECT
               organization_id,
               organization_name,
@@ -331,7 +408,6 @@ export default function BusinessTerminalOverviewPage() {
               total_runs,
               successful_runs,
               success_rate_pct,
-              new_leads,
               new_opportunities,
               won_opportunities,
               pipeline_open_usd,
@@ -339,68 +415,21 @@ export default function BusinessTerminalOverviewPage() {
               gross_margin_proxy_usd,
               mom_revenue_growth_pct,
               mom_runs_growth_pct,
-              mom_spend_growth_pct,
-              ap_open_usd
-            FROM core.fct_business_snapshot_monthly
+              mom_spend_growth_pct
+            FROM term.business_snapshot_monthly
             WHERE month_start = DATE '${monthKey}'
-          )
-          SELECT
-            'summary' AS row_type,
-            '' AS organization_id,
-            '' AS organization_name,
-            '' AS current_plan_name,
-            '' AS organization_status,
-            SUM(recognized_revenue_usd) AS recognized_revenue_usd,
-            SUM(total_spend_usd) AS total_spend_usd,
-            SUM(total_runs) AS total_runs,
-            SUM(successful_runs) AS successful_runs,
-            0 AS success_rate_pct,
-            SUM(new_leads) AS new_leads,
-            SUM(new_opportunities) AS new_opportunities,
-            SUM(won_opportunities) AS won_opportunities,
-            SUM(pipeline_open_usd) AS pipeline_open_usd,
-            SUM(mrr_usd) AS mrr_usd,
-            0 AS gross_margin_proxy_usd,
-            0 AS mom_revenue_growth_pct,
-            0 AS mom_runs_growth_pct,
-            0 AS mom_spend_growth_pct,
-            SUM(ap_open_usd) AS ap_open_usd
-          FROM month_slice
-          UNION ALL
-          SELECT
-            'org' AS row_type,
-            organization_id,
-            organization_name,
-            current_plan_name,
-            organization_status,
-            recognized_revenue_usd,
-            total_spend_usd,
-            total_runs,
-            successful_runs,
-            success_rate_pct,
-            new_leads,
-            new_opportunities,
-            won_opportunities,
-            pipeline_open_usd,
-            mrr_usd,
-            gross_margin_proxy_usd,
-            mom_revenue_growth_pct,
-            mom_runs_growth_pct,
-            mom_spend_growth_pct,
-            ap_open_usd
-          FROM month_slice
-          ORDER BY row_type ASC, recognized_revenue_usd DESC, total_runs DESC
-          LIMIT 61
-        `);
+            ORDER BY recognized_revenue_usd DESC, total_runs DESC
+            LIMIT 60
+          `),
+        ]);
 
-        const combined = combinedRaw as unknown as MonthScopedCombinedRow[];
-        const s = combined.find((row) => row.row_type === 'summary') || {};
+        const s: Partial<MonthScopedCombinedRow> = (summaryRaw[0] as Partial<MonthScopedCombinedRow>) || {};
         setSummary({
-          revenue_usd: num((s as Record<string, unknown>).recognized_revenue_usd),
-          spend_usd: num((s as Record<string, unknown>).total_spend_usd),
+          revenue_usd: num(s.recognized_revenue_usd),
+          spend_usd: num(s.total_spend_usd),
           total_runs: num(s.total_runs),
           successful_runs: num(s.successful_runs),
-          new_leads: num((s as Record<string, unknown>).new_leads),
+          new_leads: num(s.new_leads),
           new_opportunities: num(s.new_opportunities),
           won_opportunities: num(s.won_opportunities),
           pipeline_open_usd: num(s.pipeline_open_usd),
@@ -408,7 +437,7 @@ export default function BusinessTerminalOverviewPage() {
           ap_open_usd: num(s.ap_open_usd),
         });
 
-        const normalized = combined.filter((row) => row.row_type === 'org').map((row) => ({
+        const normalized = (orgRowsRaw as unknown as MonthScopedCombinedRow[]).map((row) => ({
           organization_id: String(row.organization_id ?? ''),
           organization_name: String(row.organization_name ?? ''),
           current_plan_name: String(row.current_plan_name ?? ''),
@@ -427,6 +456,10 @@ export default function BusinessTerminalOverviewPage() {
           mom_runs_growth_pct: num(row.mom_runs_growth_pct),
           mom_spend_growth_pct: num(row.mom_spend_growth_pct),
         }));
+
+        if (normalized.length === 0) {
+          setMonthNotice(`No rows found for ${shortMonth(selectedMonth)}.`);
+        }
 
         setOrgRows(normalized);
       } finally {
@@ -460,7 +493,7 @@ export default function BusinessTerminalOverviewPage() {
           mom_runs_growth_pct,
           mom_spend_growth_pct,
           feature_adoption_rate
-        FROM core.fct_business_snapshot_monthly
+        FROM term.business_snapshot_monthly
         WHERE organization_id = '${safeOrg}'
         ORDER BY month_start DESC
         LIMIT 18
@@ -498,11 +531,6 @@ export default function BusinessTerminalOverviewPage() {
   const globalSuccessRate = useMemo(() => {
     if (!summary) return 0;
     return asPct(summary.successful_runs, summary.total_runs);
-  }, [summary]);
-
-  const globalMarginPct = useMemo(() => {
-    if (!summary) return 0;
-    return asPct(summary.revenue_usd - summary.spend_usd, summary.revenue_usd);
   }, [summary]);
 
   const trendLabels = trend.map((row) => shortMonth(row.month_start));
@@ -584,31 +612,76 @@ export default function BusinessTerminalOverviewPage() {
       action: () => setSelectedMonth(month),
     }));
 
-    const orgItems = orgRows.slice(0, 20).map((row) => ({
+    const orgItems = orgRows.slice(0, 60).map((row) => ({
       key: `org-${row.organization_id}`,
-      label: row.organization_name,
-      hint: `Org · ${usd(row.recognized_revenue_usd)} revenue`,
-      action: () => setSelectedOrgId(row.organization_id),
+      label: `CUS ${row.organization_name} (${row.organization_id})`,
+      hint: `Customer · ${row.organization_name} · ${row.organization_id} · ${usd(row.recognized_revenue_usd)} revenue`,
+      action: () => router.push(`/customers/${encodeURIComponent(row.organization_id)}`),
     }));
 
-    const navItems = [
-      { key: 'nav-gtm', label: 'GTM Terminal', hint: 'Open domain', action: () => router.push('/terminal/gtm') },
-      { key: 'nav-finance', label: 'Finance Terminal', hint: 'Open domain', action: () => router.push('/terminal/finance') },
-      { key: 'nav-product', label: 'Product Terminal', hint: 'Open domain', action: () => router.push('/terminal/product') },
-      { key: 'nav-ops', label: 'Ops Terminal', hint: 'Open domain', action: () => router.push('/terminal/ops') },
+    const functionItems = VISIBLE_TERMINAL_FUNCTIONS.map((fn) => ({
+      key: `fn-${fn.code.toLowerCase()}`,
+      label: fn.usage,
+      hint: `Function · ${fn.title} · ${fn.primaryModel}`,
+      action: () => router.push(fn.route),
+    }));
+    const functionShortcutItems = [
+      { key: 'fn-short-ov-lm', label: 'OV.LM', hint: 'Function shortcut · Overview last month', action: () => router.push('/terminal') },
+      { key: 'fn-short-ov-this', label: 'OV.THIS', hint: 'Function shortcut · Overview current month', action: () => router.push('/terminal') },
+      { key: 'fn-short-ov-m2', label: 'OV.M-2', hint: 'Function shortcut · Overview two months ago', action: () => router.push('/terminal') },
+      { key: 'fn-short-bs-lm', label: 'BS.LM', hint: 'Function shortcut · Snapshot last month', action: () => router.push('/terminal') },
+      { key: 'fn-short-meta-schema', label: 'META.SCHEMA', hint: 'Function shortcut · Metadata schema panel', action: () => router.push('/terminal/meta?panel=schema') },
+      { key: 'fn-short-meta-dict', label: 'META.DICT', hint: 'Function shortcut · Metadata dictionary panel', action: () => router.push('/terminal/meta?panel=dictionary') },
+      { key: 'fn-short-cus', label: 'CUS.<org>', hint: 'Function shortcut · Customer drill', action: () => router.push('/customers') },
     ];
 
-    return [...monthItems, ...orgItems, ...navItems];
+    const navItems = [
+      { key: 'nav-gtm', label: 'GTM Terminal', hint: 'View', action: () => router.push('/terminal/gtm') },
+      { key: 'nav-finance', label: 'Finance Terminal', hint: 'View', action: () => router.push('/terminal/finance') },
+      { key: 'nav-product', label: 'Product Terminal', hint: 'View', action: () => router.push('/terminal/product') },
+      { key: 'nav-ops', label: 'Ops Terminal', hint: 'View', action: () => router.push('/terminal/ops') },
+    ];
+
+    return [...functionShortcutItems, ...functionItems, ...monthItems, ...orgItems, ...navItems];
   }, [monthOptions, orgRows, router]);
 
   const filteredSuggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const customerMode = isCustomerCommand(search);
+    const customerTerm = extractCustomerQuery(search);
+    const customerSuggestions = suggestions.filter((item) => item.key.startsWith('org-'));
+    if (customerMode) {
+      if (!customerTerm) return customerSuggestions.slice(0, 14);
+      return customerSuggestions
+        .filter((item) => `${item.label} ${item.hint}`.toLowerCase().includes(customerTerm))
+        .slice(0, 14);
+    }
     if (!q) return suggestions.slice(0, 10);
     return suggestions.filter((item) => `${item.label} ${item.hint}`.toLowerCase().includes(q)).slice(0, 14);
   }, [search, suggestions]);
 
   useEffect(() => {
     setActiveSuggestionIndex(0);
+  }, [search]);
+
+  useEffect(() => {
+    const onGlobalKey = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isEditable = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isEditable) return;
+      if (event.key === '/' || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k')) {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        setShowTypeahead(true);
+      }
+    };
+    window.addEventListener('keydown', onGlobalKey);
+    return () => window.removeEventListener('keydown', onGlobalKey);
+  }, []);
+
+  const activeFunction = useMemo(() => {
+    const token = search.trim().split(/\s+/)[0] || '';
+    return findTerminalFunction(token);
   }, [search]);
 
   const onSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -627,12 +700,31 @@ export default function BusinessTerminalOverviewPage() {
       return;
     }
     if (event.key === 'Enter') {
+      const handled = runFunctionCommand(search);
+      if (handled) {
+        event.preventDefault();
+        setShowTypeahead(false);
+        return;
+      }
+      if (isCustomerCommand(search) && filteredSuggestions.length > 0) {
+        event.preventDefault();
+        const picked = filteredSuggestions[activeSuggestionIndex] || filteredSuggestions[0];
+        setSearch(picked.label);
+        setShowTypeahead(false);
+        picked.action();
+        return;
+      }
       if (!filteredSuggestions.length) return;
       event.preventDefault();
       const picked = filteredSuggestions[activeSuggestionIndex] || filteredSuggestions[0];
       setSearch(picked.label);
       setShowTypeahead(false);
       picked.action();
+      return;
+    }
+    if (event.key === 'Tab' && activeFunction) {
+      event.preventDefault();
+      setSearch(activeFunction.usage);
     }
   };
 
@@ -643,7 +735,7 @@ export default function BusinessTerminalOverviewPage() {
         title="Intelligence Terminal"
         subtitle="Monthly business snapshot command center with organization drilldowns."
       >
-        <LoadingState title="Loading monthly business intelligence" description="Querying core.fct_business_snapshot_monthly and preparing domain views." />
+        <LoadingState title="Loading monthly business intelligence" description="Querying term.business_snapshot_monthly and preparing domain views." />
       </TerminalShell>
     );
   }
@@ -673,6 +765,7 @@ export default function BusinessTerminalOverviewPage() {
       search={(
         <div className="relative">
           <SearchInput
+            ref={searchInputRef}
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -681,8 +774,14 @@ export default function BusinessTerminalOverviewPage() {
             onFocus={() => setShowTypeahead(true)}
             onBlur={() => setTimeout(() => setShowTypeahead(false), 120)}
             onKeyDown={onSearchKeyDown}
-            placeholder="Search month, organization, or terminal"
+            placeholder="Type function: OV, OV.LM, OV.THIS, SC, GTM, FIN, PROD, OPS, META, CUS.<org>"
           />
+          {activeFunction ? (
+            <div className="mt-1 rounded border border-border bg-surface-primary px-2 py-1 text-[11px] text-content-secondary">
+              <span className="font-semibold text-content-primary">{activeFunction.code}</span>
+              {` · ${activeFunction.summary} · ${activeFunction.objective}`}
+            </div>
+          ) : null}
           {showTypeahead ? (
             <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-border bg-surface-elevated shadow-medium">
               {filteredSuggestions.length === 0 ? (
@@ -700,7 +799,7 @@ export default function BusinessTerminalOverviewPage() {
                       item.action();
                     }}
                   >
-                    <p className="text-xs font-medium text-content-primary">{item.label}</p>
+                    <p className={`text-xs font-medium text-content-primary ${item.key.startsWith('org-') ? 'pl-2' : ''}`}>{item.label}</p>
                     <p className="text-[11px] text-content-tertiary">{item.hint}</p>
                   </button>
                 ))
@@ -715,55 +814,26 @@ export default function BusinessTerminalOverviewPage() {
           <Badge variant="neutral">{shortMonth(selectedMonth)}</Badge>
         </div>
       )}
-      sidebarExtra={(
-        <div className="space-y-3">
-          <div className="rounded border border-white/20 bg-white/10 p-2">
-            <p className="text-[11px] uppercase tracking-wide text-white/75">Month</p>
-            <Select
-              className="mt-1 h-8 border-white/30 bg-white/10 text-xs text-white"
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-            >
-              {monthOptions.map((month) => (
-                <option key={month} value={month}>
-                  {shortMonth(month)}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="rounded border border-white/20 bg-white/10 p-2 text-xs">
-            <p className="text-[11px] uppercase tracking-wide text-white/75">Quick Domains</p>
-            <div className="mt-2 space-y-1">
-              <Link href="/terminal/gtm" className="block rounded px-1.5 py-1 hover:bg-white/15">GTM</Link>
-              <Link href="/terminal/finance" className="block rounded px-1.5 py-1 hover:bg-white/15">Finance</Link>
-              <Link href="/terminal/product" className="block rounded px-1.5 py-1 hover:bg-white/15">Product</Link>
-              <Link href="/terminal/ops" className="block rounded px-1.5 py-1 hover:bg-white/15">Ops</Link>
-            </div>
-          </div>
-
-          <div className="rounded border border-white/20 bg-white/10 p-2 text-xs">
-            <p className="text-[11px] uppercase tracking-wide text-white/75">Selected Org</p>
-            <p className="mt-1 text-white">{selectedOrg?.organization_name || 'None'}</p>
-            <p className="text-white/70">{selectedOrg?.current_plan_name || 'n/a'}</p>
-          </div>
-        </div>
-      )}
     >
       <section className="mb-3 rounded-md border border-border bg-surface-elevated p-3">
-        <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-content-tertiary">
-          <span className="rounded border border-border bg-surface-secondary px-2 py-1">SaaS Snapshot</span>
-          <span className="rounded border border-border px-2 py-1">GTM</span>
-          <span className="rounded border border-border px-2 py-1">Finance</span>
-          <span className="rounded border border-border px-2 py-1">Ops</span>
-          <span className="rounded border border-border px-2 py-1">Product</span>
-          <span className="ml-auto text-[11px] normal-case tracking-normal">{shortMonth(selectedMonth)} close</span>
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-content-tertiary">Command Cheatsheet</p>
+            <p className="text-sm text-content-primary">Type a code and press Enter. Use Tab to autocomplete.</p>
+          </div>
+          <Badge variant="accent">/ or Cmd/Ctrl+K</Badge>
         </div>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <StatTile label="Revenue" value={usd(summary.revenue_usd)} delta={`MRR ${usd(summary.mrr_usd)}`} trend="up" />
-          <StatTile label="Spend" value={usd(summary.spend_usd)} delta={`AP Open ${usd(summary.ap_open_usd)}`} trend="neutral" />
-          <StatTile label="Gross Margin" value={usd(summary.revenue_usd - summary.spend_usd)} delta={pct(globalMarginPct)} trend={globalMarginPct >= 0 ? 'up' : 'down'} />
-          <StatTile label="Run Success" value={pct(globalSuccessRate)} delta={`${summary.total_runs.toLocaleString()} total runs`} trend={globalSuccessRate >= 90 ? 'up' : 'down'} />
+        {monthNotice ? <p className="mb-2 text-xs text-content-tertiary">{monthNotice}</p> : null}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {VISIBLE_TERMINAL_FUNCTIONS.map((fn) => (
+            <div key={fn.code} className="rounded border border-border bg-surface-primary px-2 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-content-primary">{fn.code}</p>
+                <p className="text-[11px] text-content-tertiary truncate">{fn.usage}</p>
+              </div>
+              <p className="mt-0.5 text-[11px] text-content-tertiary truncate">{fn.summary}</p>
+            </div>
+          ))}
         </div>
       </section>
 
