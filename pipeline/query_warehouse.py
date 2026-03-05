@@ -139,9 +139,9 @@ try:
         SELECT
             metric_date,
             COUNT(DISTINCT organization_id) AS orgs,
-            SUM(runs) AS runs,
-            ROUND(AVG(success_rate_pct), 2) AS avg_success_rate_pct,
-            ROUND(SUM(mrr_usd), 2) AS mrr_usd
+            SUM(session_count) AS session_count,
+            ROUND(AVG(session_success_rate_pct), 2) AS avg_session_success_rate_pct,
+            ROUND(SUM(subscription_mrr_usd), 2) AS subscription_mrr_usd
         FROM core.metric_spine
         GROUP BY metric_date
         ORDER BY metric_date DESC

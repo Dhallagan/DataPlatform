@@ -15,38 +15,46 @@ semantic_models:
         type: time
         type_params:
           time_granularity: day
-      - name: is_active_org_day
+      - name: is_active_org
         type: categorical
-        expr: dau_org
+        expr: is_active_org
     measures:
-      - name: metric_spine_runs
-        description: Total browser runs.
+      - name: metric_spine_session_count
+        description: Total browser sessions.
         agg: sum
-        expr: runs
-      - name: metric_spine_successful_runs
-        description: Successful browser runs.
+        expr: session_count
+      - name: metric_spine_successful_session_count
+        description: Successful browser sessions.
         agg: sum
-        expr: successful_runs
-      - name: metric_spine_total_events
-        description: Total platform events captured in runs.
+        expr: successful_session_count
+      - name: metric_spine_event_count
+        description: Total platform events captured in sessions.
         agg: sum
-        expr: total_events
-      - name: metric_spine_total_errors
-        description: Total errors captured in runs.
+        expr: event_count
+      - name: metric_spine_error_count
+        description: Total errors captured in sessions.
         agg: sum
-        expr: total_errors
-      - name: metric_spine_total_run_minutes
-        description: Total runtime minutes.
+        expr: error_count
+      - name: metric_spine_session_duration_minutes
+        description: Total session runtime minutes.
         agg: sum
-        expr: total_run_minutes
-      - name: metric_spine_mrr_usd
+        expr: session_duration_minutes
+      - name: metric_spine_subscription_mrr_usd
         description: Daily active subscription MRR.
         agg: sum
-        expr: mrr_usd
+        expr: subscription_mrr_usd
       - name: metric_spine_active_org_days
-        description: Count of organization-days with at least one run.
+        description: Count of organization-days with at least one session.
         agg: sum
-        expr: dau_org
+        expr: is_active_org
+      - name: metric_spine_new_organization_count
+        description: New organizations created.
+        agg: sum
+        expr: new_organization_count
+      - name: metric_spine_new_user_count
+        description: New users created.
+        agg: sum
+        expr: new_user_count
 
   - name: daily_kpis_semantic
     description: Semantic model for top-line daily executive KPIs.
@@ -126,47 +134,47 @@ semantic_models:
         expr: won_opportunities
 
 metrics:
-  - name: total_runs
-    label: Total Runs
-    description: Total browser runs over the selected time range.
+  - name: total_sessions
+    label: Total Sessions
+    description: Total browser sessions over the selected time range.
     type: simple
     type_params:
-      measure: metric_spine_runs
+      measure: metric_spine_session_count
 
-  - name: total_successful_runs
-    label: Total Successful Runs
-    description: Successful browser runs over the selected time range.
+  - name: total_successful_sessions
+    label: Total Successful Sessions
+    description: Successful browser sessions over the selected time range.
     type: simple
     type_params:
-      measure: metric_spine_successful_runs
+      measure: metric_spine_successful_session_count
 
   - name: total_events
     label: Total Events
-    description: Total run events over the selected time range.
+    description: Total session events over the selected time range.
     type: simple
     type_params:
-      measure: metric_spine_total_events
+      measure: metric_spine_event_count
 
   - name: total_errors
     label: Total Errors
-    description: Total run errors over the selected time range.
+    description: Total session errors over the selected time range.
     type: simple
     type_params:
-      measure: metric_spine_total_errors
+      measure: metric_spine_error_count
 
-  - name: total_run_minutes
-    label: Total Run Minutes
-    description: Total run minutes over the selected time range.
+  - name: total_session_minutes
+    label: Total Session Minutes
+    description: Total session minutes over the selected time range.
     type: simple
     type_params:
-      measure: metric_spine_total_run_minutes
+      measure: metric_spine_session_duration_minutes
 
   - name: total_mrr_usd
     label: Total MRR USD
     description: Total active-subscription MRR over the selected time range.
     type: simple
     type_params:
-      measure: metric_spine_mrr_usd
+      measure: metric_spine_subscription_mrr_usd
 
   - name: active_org_days
     label: Active Organization Days
@@ -175,13 +183,27 @@ metrics:
     type_params:
       measure: metric_spine_active_org_days
 
-  - name: run_success_rate
-    label: Run Success Rate
-    description: Ratio of successful runs to total runs.
+  - name: total_new_organizations
+    label: Total New Organizations
+    description: New organizations created over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_new_organization_count
+
+  - name: total_new_users
+    label: Total New Users
+    description: New users created over the selected time range.
+    type: simple
+    type_params:
+      measure: metric_spine_new_user_count
+
+  - name: session_success_rate
+    label: Session Success Rate
+    description: Ratio of successful sessions to total sessions.
     type: ratio
     type_params:
-      numerator: total_successful_runs
-      denominator: total_runs
+      numerator: total_successful_sessions
+      denominator: total_sessions
 
   - name: error_rate_per_event
     label: Error Rate Per Event
@@ -199,17 +221,17 @@ metrics:
       numerator: total_mrr_usd
       denominator: active_org_days
 
-  - name: run_failures
-    label: Run Failures
-    description: Number of failed runs.
+  - name: session_failures
+    label: Session Failures
+    description: Number of failed sessions.
     type: derived
     type_params:
-      expr: runs - successful_runs
+      expr: sessions - successful_sessions
       metrics:
-        - name: total_runs
-          alias: runs
-        - name: total_successful_runs
-          alias: successful_runs
+        - name: total_sessions
+          alias: sessions
+        - name: total_successful_sessions
+          alias: successful_sessions
 
   - name: kpi_total_sessions
     label: KPI Total Sessions

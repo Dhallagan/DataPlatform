@@ -109,16 +109,22 @@ models:
               arguments:
                 to: ref('organizations')
                 field: organization_id
-      - name: runs
+      - name: session_count
         tests:
           - not_null
-      - name: successful_runs
+      - name: successful_session_count
         tests:
           - not_null
-      - name: success_rate_pct
+      - name: session_success_rate_pct
         tests:
           - not_null
-      - name: mrr_usd
+      - name: subscription_mrr_usd
+        tests:
+          - not_null
+      - name: new_organization_count
+        tests:
+          - not_null
+      - name: new_user_count
         tests:
           - not_null
 

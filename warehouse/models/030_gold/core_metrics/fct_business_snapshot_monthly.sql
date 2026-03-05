@@ -55,7 +55,7 @@ mrr_monthly AS (
     SELECT
         organization_id,
         DATE_TRUNC('month', metric_date)::DATE AS month_start,
-        MAX(mrr_usd) AS mrr_usd
+        MAX(subscription_mrr_usd) AS mrr_usd
     FROM {{ ref('metric_spine') }}
     GROUP BY 1, 2
 ),

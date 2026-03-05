@@ -123,7 +123,7 @@ This rebuilds:
 | Object | Grain | Description | Primary keys / key columns |
 |---|---|---|---|
 | `daily_kpis` | 1 row per date | Executive KPI rollup | `date` |
-| `metric_spine` | 1 row per organization per day | Canonical daily metric spine | `metric_date`, `organization_id` |
+| `metric_spine` | 1 row per organization per day | Canonical daily metric spine | `metric_date`, `organization_id`, `session_count`, `successful_session_count`, `session_success_rate_pct`, `is_active_org`, `event_count`, `error_count`, `session_duration_minutes`, `subscription_mrr_usd`, `new_organization_count`, `new_user_count` |
 
 ### GTM (`gtm`)
 
