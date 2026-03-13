@@ -9,7 +9,7 @@ import { findTerminalFunction, resolveTerminalCommandHref, VISIBLE_TERMINAL_FUNC
 interface TerminalShellProps {
   title: string;
   subtitle: string;
-  active: 'overview' | 'executive' | 'gtm' | 'growth' | 'product' | 'finance' | 'ops' | 'meta';
+  active: 'chat' | 'overview' | 'executive' | 'gtm' | 'growth' | 'product' | 'finance' | 'unit' | 'ops' | 'meta';
   children: ReactNode;
   search?: ReactNode;
   headerMeta?: ReactNode;
@@ -17,13 +17,11 @@ interface TerminalShellProps {
 }
 
 const NAV_ITEMS: { key: TerminalShellProps['active']; label: string; href: string }[] = [
+  { key: 'chat', label: 'Chat', href: '/terminal/chat' },
   { key: 'overview', label: 'Overview', href: '/terminal' },
-  { key: 'executive', label: 'Executive', href: '/terminal/executive' },
-  { key: 'gtm', label: 'GTM', href: '/terminal/gtm' },
-  { key: 'growth', label: 'Growth', href: '/terminal/growth' },
-  { key: 'product', label: 'Product', href: '/terminal/product' },
+  { key: 'growth', label: 'GTM', href: '/terminal/growth' },
   { key: 'finance', label: 'Finance', href: '/terminal/finance' },
-  { key: 'ops', label: 'Ops', href: '/terminal/ops' },
+  { key: 'unit', label: 'Unit Econ', href: '/terminal/unit-economics' },
   { key: 'meta', label: 'Meta', href: '/terminal/meta' },
 ];
 
@@ -60,33 +58,33 @@ interface MetadataSearchResult {
 interface CustomerSearchResult {
   organization_id: string;
   organization_name: string;
+  plan_name: string;
 }
 
-function isCustomerCommand(query: string): boolean {
-  return /^(?:cus|cust|cuss|customer)(?:[\s.]|$)/i.test(query.trim());
+function isUnitEconomicsCommand(query: string): boolean {
+  return /^(?:ue|unit|econ|margin)(?:[\s.]|$)/i.test(query.trim());
 }
 
-function extractCustomerQuery(query: string): string {
-  return query.trim().replace(/^(?:cus|cust|cuss|customer)(?:[\s.:-]+)?/i, '').trim().toLowerCase();
+function extractUnitEconomicsQuery(query: string): string {
+  return query.trim().replace(/^(?:ue|unit|econ|margin)(?:[\s.:-]+)?/i, '').trim().toLowerCase();
 }
 
 function schemaObjectHref(tableSchema: string, tableName: string): string {
   const schema = tableSchema.toLowerCase();
   const table = tableName.toLowerCase();
 
+  if (table.includes('unit_economics')) return '/terminal/unit-economics';
+
   if (schema === 'finance') return '/terminal/finance';
   if (schema === 'product') return '/terminal/product';
-  if (schema === 'ops' || schema === 'eng') return '/terminal/ops';
+  if (schema === 'ops' || schema === 'eng') return '/terminal/executive';
 
   if (schema === 'growth') {
-    if (table.includes('campaign') || table.includes('pipeline') || table.includes('lead') || table.includes('opportunit')) {
-      return '/terminal/gtm';
-    }
     return '/terminal/growth';
   }
 
   if (schema === 'core' || schema === 'silver' || schema === 'bronze_supabase') {
-    if (table.includes('campaign') || table.includes('lead') || table.includes('opportunit')) return '/terminal/gtm';
+    if (table.includes('campaign') || table.includes('lead') || table.includes('opportunit')) return '/terminal/growth';
     if (table.includes('session') || table.includes('run') || table.includes('event')) return '/terminal/product';
     if (table.includes('subscription') || table.includes('invoice') || table.includes('revenue') || table.includes('mrr')) return '/terminal/finance';
     return '/terminal/executive';
@@ -151,13 +149,20 @@ function DefaultTerminalSearch() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sql: `
+              WITH latest_month AS (
+                SELECT MAX(metric_month) AS metric_month
+                FROM fin.agg_customer_unit_economics_monthly
+              )
               SELECT
-                organization_id,
-                organization_name
-              FROM fin.agg_revenue_monthly
-              GROUP BY 1, 2
-              ORDER BY MAX(realized_revenue_usd) DESC
-              LIMIT 120
+                c.organization_id,
+                MAX(c.organization_name) AS organization_name,
+                COALESCE(MAX(c.primary_plan_name), 'unknown') AS plan_name
+              FROM fin.agg_customer_unit_economics_monthly c
+              JOIN latest_month lm
+                ON c.metric_month = lm.metric_month
+              GROUP BY 1
+              ORDER BY MAX(c.total_session_hours) DESC
+              LIMIT 200
             `,
           }),
         });
@@ -170,6 +175,7 @@ function DefaultTerminalSearch() {
             .map((row) => ({
               organization_id: String(row.organization_id ?? ''),
               organization_name: String(row.organization_name ?? ''),
+              plan_name: String(row.plan_name ?? 'unknown'),
             }))
             .filter((row) => row.organization_id.length > 0 && row.organization_name.length > 0),
         );
@@ -252,7 +258,6 @@ function DefaultTerminalSearch() {
       { key: 'fn-short-ov-m2', label: 'OV.M-2', hint: 'Function shortcut · Overview two months ago', href: '/terminal' },
       { key: 'fn-short-meta-schema', label: 'META.SCHEMA', hint: 'Function shortcut · Metadata schema panel', href: '/terminal/meta?panel=schema' },
       { key: 'fn-short-meta-dict', label: 'META.DICT', hint: 'Function shortcut · Metadata dictionary panel', href: '/terminal/meta?panel=dictionary' },
-      { key: 'fn-short-cus', label: 'CUS.<org>', hint: 'Function shortcut · Customer drill', href: '/customers' },
     ];
 
     const viewSuggestions = NAV_ITEMS.map((item) => ({
@@ -276,28 +281,35 @@ function DefaultTerminalSearch() {
       href: objectNameToHref(row.name, row.table_key),
     }));
 
-    const customerSuggestions = customers.slice(0, 80).map((customer) => ({
-      key: `customer-${customer.organization_id}`,
-      label: `CUS ${customer.organization_name} (${customer.organization_id})`,
-      hint: `Customer · ${customer.organization_name} · ${customer.organization_id}`,
-      href: `/customers/${encodeURIComponent(customer.organization_id)}`,
+    const ueCustomerSuggestions = customers.slice(0, 80).map((customer) => ({
+      key: `ue-customer-${customer.organization_id}`,
+      label: `UE ${customer.organization_name} (${customer.organization_id})`,
+      hint: `Unit Econ · ${customer.plan_name} · ${customer.organization_id}`,
+      href: `/terminal/unit-economics?customer=${encodeURIComponent(customer.organization_id)}`,
     }));
 
-    return [...functionShortcutSuggestions, ...functionSuggestions, ...customerSuggestions, ...viewSuggestions, ...dynamicSuggestions, ...schemaSuggestions];
+    return [
+      ...functionShortcutSuggestions,
+      ...functionSuggestions,
+      ...ueCustomerSuggestions,
+      ...viewSuggestions,
+      ...dynamicSuggestions,
+      ...schemaSuggestions,
+    ];
   }, [customers, remoteResults, tables]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
-    const customerMode = isCustomerCommand(query);
-    const customerTerm = extractCustomerQuery(query);
-    const customerSuggestions = suggestions.filter((item) => item.key.startsWith('customer-'));
+    const ueMode = isUnitEconomicsCommand(query);
+    const ueTerm = extractUnitEconomicsQuery(query);
+    const ueSuggestions = suggestions.filter((item) => item.key.startsWith('ue-customer-'));
 
-    if (customerMode) {
-      if (!customerTerm) return customerSuggestions.slice(0, 12);
-      return customerSuggestions
+    if (ueMode) {
+      if (!ueTerm) return ueSuggestions.slice(0, 12);
+      return ueSuggestions
         .filter((item) => {
           const full = `${item.label} ${item.hint}`.toLowerCase();
-          return full.includes(customerTerm);
+          return full.includes(ueTerm);
         })
         .slice(0, 12);
     }
@@ -358,14 +370,14 @@ function DefaultTerminalSearch() {
     }
 
     if (event.key === 'Enter') {
-      const isCustomerQuery = isCustomerCommand(query);
-      if (isCustomerQuery) {
+      const isUeQuery = isUnitEconomicsCommand(query);
+      if (isUeQuery) {
         event.preventDefault();
-        if (filtered.length > 0) {
-          const customerItem = filtered.find((item) => item.key.startsWith('customer-')) || filtered[0];
-          selectSuggestion(customerItem);
-        } else if (pathname !== '/customers') {
-          router.push('/customers');
+        const ueItems = filtered.filter((item) => item.key.startsWith('ue-customer-'));
+        if (ueItems.length > 0) {
+          selectSuggestion(ueItems[0]);
+        } else if (pathname !== '/terminal/unit-economics') {
+          router.push('/terminal/unit-economics');
         }
         return;
       }
@@ -396,7 +408,7 @@ function DefaultTerminalSearch() {
         onFocus={() => setShowTypeahead(true)}
         onBlur={() => setTimeout(() => setShowTypeahead(false), 120)}
         onKeyDown={onKeyDown}
-        placeholder="Type: OV, OV.LM, OV.THIS, SC, GTM, FIN, OPS, META, ABOUT, CUS.<org>  (/ to focus)"
+        placeholder="Type: OV, OV.LM, GTM, FIN, UE <customer>, EXE, META  (/ to focus)"
       />
       {activeFunction ? (
         <div className="mt-1 rounded border border-border bg-surface-primary px-2 py-1 text-[11px] text-content-secondary">
@@ -448,8 +460,8 @@ export default function TerminalShell({ title, subtitle, active, children, searc
         backgroundSize: '32px 32px',
       }}
     >
-      <div className="grid min-h-screen grid-cols-[220px_1fr]">
-        <aside className="border-r border-accent-active bg-accent p-3 text-white">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[220px_1fr]">
+        <aside className="border-b border-accent-active bg-accent p-3 text-white lg:border-b-0 lg:border-r">
           <div className="mb-3 flex items-center gap-2 rounded border border-white/25 bg-white/10 px-2 py-2">
             <BrowserbaseMark />
             <div>
@@ -458,7 +470,21 @@ export default function TerminalShell({ title, subtitle, active, children, searc
             </div>
           </div>
 
-          <div className="space-y-1">
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
+            <Link
+              href="/terminal/chat"
+              prefetch={false}
+              className={`block rounded px-2 py-2 text-left text-xs transition-colors ${
+                active === 'chat'
+                  ? 'border border-white/40 bg-white/20 text-white'
+                  : 'border border-white/20 bg-white/10 text-white/90 hover:bg-white/20'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">CHAT</span>
+                <span className="text-[10px] text-white/70">Assistant</span>
+              </div>
+            </Link>
             {VISIBLE_TERMINAL_FUNCTIONS.map((fn) => (
               <Link
                 key={fn.code}
@@ -478,12 +504,12 @@ export default function TerminalShell({ title, subtitle, active, children, searc
             ))}
           </div>
 
-          {sidebarExtra ? <div className="mt-4">{sidebarExtra}</div> : null}
+          {sidebarExtra ? <div className="mt-4 lg:mt-4">{sidebarExtra}</div> : null}
         </aside>
 
         <main className="p-3">
-          <div className="mb-3 flex items-center justify-between gap-3 rounded border border-border bg-surface-primary px-3 py-2">
-            <div className="min-w-0">
+          <div className="mb-3 flex flex-col gap-3 rounded border border-border bg-surface-primary px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 lg:max-w-sm">
               <div className="flex items-center gap-2">
                 <BrowserbaseMark />
                 <div>
@@ -493,15 +519,15 @@ export default function TerminalShell({ title, subtitle, active, children, searc
               </div>
             </div>
 
-            <div className="w-full max-w-xl">{search || <DefaultTerminalSearch />}</div>
+            <div className="w-full lg:max-w-xl lg:flex-1">{search || <DefaultTerminalSearch />}</div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 self-end lg:self-auto">
               <Link
                 href="/chat"
                 prefetch={false}
                 className="rounded border border-border bg-surface-secondary px-2 py-1 text-xs font-medium text-content-primary hover:bg-surface-tertiary"
               >
-                Chat
+                Full
               </Link>
               {headerMeta || <Badge variant="accent">LIVE</Badge>}
             </div>

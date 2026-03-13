@@ -7,6 +7,7 @@ interface ResultsPanelProps {
   currentResult: QueryResult | null;
   resultHistory: QueryResult[];
   onSelectResult: (result: QueryResult) => void;
+  className?: string;
 }
 
 interface ReportData {
@@ -25,6 +26,7 @@ export default function ResultsPanel({
   currentResult,
   resultHistory,
   onSelectResult,
+  className,
 }: ResultsPanelProps) {
   const [activeTab, setActiveTab] = useState<'results' | 'query' | 'history'>('results');
 
@@ -257,7 +259,7 @@ export default function ResultsPanel({
   };
 
   return (
-    <div className="w-[400px] bg-surface-secondary border-l border-border flex flex-col flex-shrink-0">
+    <div className={`bg-surface-secondary flex flex-col flex-shrink-0 ${className || 'w-[400px] border-l border-border'}`}>
       {/* Tabs */}
       <div className="flex border-b border-border flex-shrink-0">
         {[

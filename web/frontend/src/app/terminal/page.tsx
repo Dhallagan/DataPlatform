@@ -95,7 +95,7 @@ interface ChartSeries {
   values: number[];
 }
 
-type FunctionDesk = 'ALL' | 'GTM' | 'FINANCE' | 'OPS' | 'PRODUCT';
+type FunctionDesk = 'ALL' | 'GTM' | 'FINANCE' | 'PRODUCT';
 
 interface MatrixRow {
   label: string;
@@ -252,44 +252,6 @@ export default function BusinessTerminalOverviewPage() {
     const code = token.toUpperCase();
     const arg = rest.join(' ').trim();
     const normalizedArg = arg.toLowerCase();
-    if ((code === 'CUS' || code === 'CUST' || code === 'CUSS' || code === 'CUSTOMER') && normalizedArg) {
-      const ranked = orgRows
-        .map((row) => {
-          const orgId = row.organization_id.toLowerCase();
-          const orgName = row.organization_name.toLowerCase();
-          const score =
-            orgId === normalizedArg ? 0 :
-            orgName === normalizedArg ? 1 :
-            orgId.startsWith(normalizedArg) ? 2 :
-            orgName.startsWith(normalizedArg) ? 3 :
-            orgId.includes(normalizedArg) ? 4 :
-            orgName.includes(normalizedArg) ? 5 :
-            99;
-          return { row, score };
-        })
-        .filter((item) => item.score < 99)
-        .sort((a, b) => a.score - b.score);
-      const match = ranked[0]?.row;
-      if (match) {
-        router.push(`/customers/${match.organization_id}`);
-        return true;
-      }
-    }
-    if ((code === 'CUS' || code === 'CUST' || code === 'CUSS' || code === 'CUSTOMER') && !normalizedArg) {
-      router.push('/customers');
-      return true;
-    }
-    if ((code === 'CUS' || code === 'CUST' || code === 'CUSS' || code === 'CUSTOMER') && normalizedArg) {
-      const direct = orgRows.find((row) => {
-        const orgId = row.organization_id.toLowerCase();
-        const orgName = row.organization_name.toLowerCase();
-        return orgId === normalizedArg || orgName.includes(normalizedArg);
-      });
-      if (direct) {
-        router.push(`/customers/${direct.organization_id}`);
-        return true;
-      }
-    }
     const href = resolveTerminalCommandHref(input);
     if (!href) return false;
     router.push(href);
@@ -589,11 +551,6 @@ export default function BusinessTerminalOverviewPage() {
         { label: 'MRR', value: usd(summary.mrr_usd) },
         { label: 'Gross Margin', value: usd(summary.revenue_usd - summary.spend_usd) },
       ],
-      OPS: [
-        { label: 'Total Runs', value: summary.total_runs.toLocaleString() },
-        { label: 'Successful', value: summary.successful_runs.toLocaleString() },
-        { label: 'Success Rate', value: pct(globalSuccessRate) },
-      ],
       PRODUCT: [
         { label: 'Selected Org', value: selectedOrg?.organization_name || 'None' },
         { label: 'Org Runs', value: selectedOrg ? selectedOrg.total_runs.toLocaleString() : '0' },
@@ -602,7 +559,7 @@ export default function BusinessTerminalOverviewPage() {
     } as const;
 
     return byDesk[activeDesk];
-  }, [activeDesk, globalSuccessRate, globalWinRate, selectedOrg, summary]);
+  }, [activeDesk, globalWinRate, selectedOrg, summary]);
 
   const suggestions = useMemo<Suggestion[]>(() => {
     const monthItems = monthOptions.slice(0, 8).map((month) => ({
@@ -610,13 +567,6 @@ export default function BusinessTerminalOverviewPage() {
       label: shortMonth(month),
       hint: 'Switch month',
       action: () => setSelectedMonth(month),
-    }));
-
-    const orgItems = orgRows.slice(0, 60).map((row) => ({
-      key: `org-${row.organization_id}`,
-      label: `CUS ${row.organization_name} (${row.organization_id})`,
-      hint: `Customer · ${row.organization_name} · ${row.organization_id} · ${usd(row.recognized_revenue_usd)} revenue`,
-      action: () => router.push(`/customers/${encodeURIComponent(row.organization_id)}`),
     }));
 
     const functionItems = VISIBLE_TERMINAL_FUNCTIONS.map((fn) => ({
@@ -631,30 +581,19 @@ export default function BusinessTerminalOverviewPage() {
       { key: 'fn-short-ov-m2', label: 'OV.M-2', hint: 'Function shortcut · Overview two months ago', action: () => router.push('/terminal') },
       { key: 'fn-short-meta-schema', label: 'META.SCHEMA', hint: 'Function shortcut · Metadata schema panel', action: () => router.push('/terminal/meta?panel=schema') },
       { key: 'fn-short-meta-dict', label: 'META.DICT', hint: 'Function shortcut · Metadata dictionary panel', action: () => router.push('/terminal/meta?panel=dictionary') },
-      { key: 'fn-short-cus', label: 'CUS.<org>', hint: 'Function shortcut · Customer drill', action: () => router.push('/customers') },
     ];
 
     const navItems = [
-      { key: 'nav-gtm', label: 'GTM Terminal', hint: 'View', action: () => router.push('/terminal/gtm') },
+      { key: 'nav-growth', label: 'GTM Terminal', hint: 'View', action: () => router.push('/terminal/growth') },
       { key: 'nav-finance', label: 'Finance Terminal', hint: 'View', action: () => router.push('/terminal/finance') },
       { key: 'nav-product', label: 'Product Terminal', hint: 'View', action: () => router.push('/terminal/product') },
-      { key: 'nav-ops', label: 'Ops Terminal', hint: 'View', action: () => router.push('/terminal/ops') },
     ];
 
-    return [...functionShortcutItems, ...functionItems, ...monthItems, ...orgItems, ...navItems];
-  }, [monthOptions, orgRows, router]);
+    return [...functionShortcutItems, ...functionItems, ...monthItems, ...navItems];
+  }, [monthOptions, router]);
 
   const filteredSuggestions = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const customerMode = isCustomerCommand(search);
-    const customerTerm = extractCustomerQuery(search);
-    const customerSuggestions = suggestions.filter((item) => item.key.startsWith('org-'));
-    if (customerMode) {
-      if (!customerTerm) return customerSuggestions.slice(0, 14);
-      return customerSuggestions
-        .filter((item) => `${item.label} ${item.hint}`.toLowerCase().includes(customerTerm))
-        .slice(0, 14);
-    }
     if (!q) return suggestions.slice(0, 10);
     return suggestions.filter((item) => `${item.label} ${item.hint}`.toLowerCase().includes(q)).slice(0, 14);
   }, [search, suggestions]);
@@ -773,7 +712,7 @@ export default function BusinessTerminalOverviewPage() {
             onFocus={() => setShowTypeahead(true)}
             onBlur={() => setTimeout(() => setShowTypeahead(false), 120)}
             onKeyDown={onSearchKeyDown}
-            placeholder="Type function: OV, OV.LM, OV.THIS, SC, GTM, FIN, OPS, META, ABOUT, CUS.<org>"
+            placeholder="Type function: OV, OV.LM, OV.THIS, EXE, GTM, FIN, UE, META"
           />
           {activeFunction ? (
             <div className="mt-1 rounded border border-border bg-surface-primary px-2 py-1 text-[11px] text-content-secondary">
@@ -798,7 +737,7 @@ export default function BusinessTerminalOverviewPage() {
                       item.action();
                     }}
                   >
-                    <p className={`text-xs font-medium text-content-primary ${item.key.startsWith('org-') ? 'pl-2' : ''}`}>{item.label}</p>
+                    <p className="text-xs font-medium text-content-primary">{item.label}</p>
                     <p className="text-[11px] text-content-tertiary">{item.hint}</p>
                   </button>
                 ))
@@ -838,7 +777,7 @@ export default function BusinessTerminalOverviewPage() {
 
       <section className="mb-3 rounded-md border border-border bg-surface-elevated p-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          {(['ALL', 'GTM', 'FINANCE', 'OPS', 'PRODUCT'] as FunctionDesk[]).map((desk) => (
+          {(['ALL', 'GTM', 'FINANCE', 'PRODUCT'] as FunctionDesk[]).map((desk) => (
             <button
               key={desk}
               className={`rounded border px-2 py-1 text-xs ${activeDesk === desk ? 'border-teal-600 bg-teal-700/15 text-teal-300' : 'border-border text-content-secondary'}`}
@@ -914,7 +853,7 @@ export default function BusinessTerminalOverviewPage() {
 
         <section className="rounded-md border border-border bg-surface-elevated p-3">
           <p className="text-xs uppercase tracking-wide text-content-tertiary">Runs vs Wins</p>
-          <p className="mb-2 text-sm text-content-primary">Operating output and GTM conversion trend</p>
+          <p className="mb-2 text-sm text-content-primary">Operating output and growth conversion trend</p>
           <MiniSeriesChart labels={trendLabels} series={opsSeries} />
         </section>
       </div>
@@ -960,8 +899,8 @@ export default function BusinessTerminalOverviewPage() {
               <p className="text-xs uppercase tracking-wide text-content-tertiary">Organization Drill</p>
               <p className="text-sm text-content-primary">{selectedOrg.organization_name} · {selectedOrg.current_plan_name} · {selectedOrg.organization_status}</p>
             </div>
-            <Button size="sm" variant="secondary" onClick={() => router.push(`/customers/${selectedOrg.organization_id}`)}>
-              Open Full Profile
+            <Button size="sm" variant="secondary" onClick={() => router.push(`/terminal/unit-economics?customer=${selectedOrg.organization_id}`)}>
+              Open Unit Econ
             </Button>
           </div>
 

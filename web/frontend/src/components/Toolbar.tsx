@@ -18,7 +18,7 @@ export default function Toolbar() {
           {/* Navigation */}
           <nav className="flex items-center gap-1">
             <Link
-              href="/"
+              href="/chat"
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-tertiary transition-colors"
             >
               Chat

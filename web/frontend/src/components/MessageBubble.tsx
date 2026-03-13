@@ -45,7 +45,7 @@ export default function MessageBubble({ message, compact = false }: MessageBubbl
           <p className="whitespace-pre-wrap text-[15px]">{message.content}</p>
         ) : (
           <div className="space-y-3">
-            {/* Thinking block - collapsed tool call details */}
+            {/* Tool traces stay collapsed unless a user explicitly expands them. */}
             {message.toolCalls && message.toolCalls.length > 0 && (
               <ThinkingBlock
                 toolCalls={message.toolCalls}

@@ -369,22 +369,22 @@ export default function GrowthTerminalPage() {
 
   if (loading) {
     return (
-      <TerminalShell active="growth" title="Growth Terminal" subtitle="Department-wide growth operations from demand generation through CAC.">
-        <LoadingState title="Loading growth terminal" description="Compiling full-funnel and acquisition economics signals." />
+      <TerminalShell active="growth" title="GTM Terminal" subtitle="Department-wide GTM operations from demand generation through CAC.">
+        <LoadingState title="Loading GTM terminal" description="Compiling full-funnel and acquisition economics signals." />
       </TerminalShell>
     );
   }
 
   if (error) {
     return (
-      <TerminalShell active="growth" title="Growth Terminal" subtitle="Department-wide growth operations from demand generation through CAC.">
-        <EmptyState title="Growth terminal unavailable" description={error} actionLabel="Retry" onAction={() => window.location.reload()} />
+      <TerminalShell active="growth" title="GTM Terminal" subtitle="Department-wide GTM operations from demand generation through CAC.">
+        <EmptyState title="GTM terminal unavailable" description={error} actionLabel="Retry" onAction={() => window.location.reload()} />
       </TerminalShell>
     );
   }
 
   return (
-    <TerminalShell active="growth" title="Growth Terminal" subtitle="Department-wide growth operations from demand generation through CAC.">
+    <TerminalShell active="growth" title="GTM Terminal" subtitle="Department-wide GTM operations from demand generation through CAC.">
       <div className="space-y-3">
         {selectedOrganizationId ? (
           <OrganizationDrillPanel organizationId={selectedOrganizationId} onClose={() => setSelectedOrganizationId(null)} />

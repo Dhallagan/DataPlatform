@@ -6,7 +6,7 @@ export interface TerminalFunctionArg {
 }
 
 export interface TerminalFunctionSpec {
-  code: 'OV' | 'SC' | 'BS' | 'GTM' | 'FIN' | 'PROD' | 'OPS' | 'CUS' | 'META' | 'ABOUT';
+  code: 'CHAT' | 'OV' | 'EXE' | 'BS' | 'GTM' | 'FIN' | 'UE' | 'PROD' | 'OPS' | 'CUS' | 'META';
   aliases: string[];
   title: string;
   route: string;
@@ -19,6 +19,18 @@ export interface TerminalFunctionSpec {
 }
 
 export const TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = [
+  {
+    code: 'CHAT',
+    aliases: ['ASK'],
+    title: 'Terminal Chat',
+    route: '/terminal/chat',
+    usage: 'CHAT',
+    summary: 'Open the terminal-native assistant workspace.',
+    primaryModel: 'Assistant over warehouse tools',
+    objective: 'Ask questions and inspect query results without leaving terminal mode.',
+    output: 'Conversation workspace with results and query history.',
+    args: [],
+  },
   {
     code: 'OV',
     aliases: ['OVERVIEW'],
@@ -34,15 +46,15 @@ export const TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = [
     ],
   },
   {
-    code: 'SC',
-    aliases: ['SCORECARD', 'EXEC', 'EXE'],
-    title: 'Scorecard',
+    code: 'EXE',
+    aliases: ['SC', 'SCORECARD', 'EXEC'],
+    title: 'Executive Scorecard',
     route: '/terminal/executive',
-    usage: 'SC',
-    summary: 'Executive 15-metric scorecard.',
-    primaryModel: 'term.scorecard_daily',
-    objective: 'Give leadership one canonical KPI surface with consistent definitions.',
-    output: 'Time-series table of metric, value, and date.',
+    usage: 'EXE',
+    summary: 'Canonical executive KPI command surface.',
+    primaryModel: 'term.scorecard_daily + term.exec_daily',
+    objective: 'Run leadership operating review from one trusted metric contract.',
+    output: 'Executive KPI set, trend context, and customer drill entry points.',
     args: [],
   },
   {
@@ -61,14 +73,14 @@ export const TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = [
   },
   {
     code: 'GTM',
-    aliases: [],
-    title: 'Go To Market',
-    route: '/terminal/gtm',
+    aliases: ['GROW', 'GROWTH'],
+    title: 'GTM',
+    route: '/terminal/growth',
     usage: 'GTM',
-    summary: 'Pipeline and campaign efficiency terminal.',
-    primaryModel: 'term.gtm_daily',
-    objective: 'Run weekly demand and conversion operating review.',
-    output: 'Pipeline KPIs, campaign board, and top customer monetization.',
+    summary: 'GTM operations and acquisition efficiency.',
+    primaryModel: 'gtm.growth_task_queue + gtm.agg_unit_economics_monthly',
+    objective: 'Run the weekly GTM operating review from one surface.',
+    output: 'Execution queue, funnel performance, channel efficiency, and unit economics.',
     args: [],
   },
   {
@@ -82,6 +94,25 @@ export const TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = [
     objective: 'Keep spend in policy and protect margin.',
     output: 'Budget vs actual, source/vendor concentration, org finance drilldown.',
     args: [],
+  },
+  {
+    code: 'UE',
+    aliases: ['UNIT', 'ECON', 'MARGIN'],
+    title: 'Unit Economics',
+    route: '/terminal/unit-economics',
+    usage: 'UE [organization_id]',
+    summary: 'Blended cost, utilization, and margin rollup.',
+    primaryModel: 'term.unit_economics_monthly + fin.agg_customer_unit_economics_monthly',
+    objective: 'Track customer and firm unit economics with one terminal command.',
+    output: 'Monthly blended expected cost/hour, utilization, and gross margin trends.',
+    args: [
+      {
+        name: 'organization_id',
+        required: false,
+        description: 'Optional customer drill target.',
+        example: 'UE org_1234',
+      },
+    ],
   },
   {
     code: 'PROD',
@@ -135,21 +166,9 @@ export const TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = [
       { name: 'organization_id', required: true, description: 'Target organization id or a name fragment.', example: 'CUS org_1234' },
     ],
   },
-  {
-    code: 'ABOUT',
-    aliases: ['ABT', 'ARCH'],
-    title: 'Architecture Decisions',
-    route: '/about',
-    usage: 'ABOUT',
-    summary: 'Read architecture decisions and implementation rationale.',
-    primaryModel: 'Architecture record',
-    objective: 'Provide one narrative source of truth for why this system is structured this way.',
-    output: 'Decision essay, tradeoffs, and operating best practices.',
-    args: [],
-  },
 ];
 
-const HIDDEN_TERMINAL_FUNCTION_CODES = new Set<TerminalFunctionSpec['code']>(['PROD', 'BS']);
+const HIDDEN_TERMINAL_FUNCTION_CODES = new Set<TerminalFunctionSpec['code']>(['CHAT', 'EXE', 'BS', 'PROD', 'OPS', 'CUS']);
 
 export const VISIBLE_TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = TERMINAL_FUNCTIONS.filter(
   (fn) => !HIDDEN_TERMINAL_FUNCTION_CODES.has(fn.code),
@@ -213,6 +232,10 @@ export function resolveTerminalCommandHref(raw: string): string | null {
     if (panelToken.startsWith('DICT')) return '/terminal/meta?panel=dictionary';
     if (panelToken.startsWith('SCHEMA')) return '/terminal/meta?panel=schema';
     return fn.route;
+  }
+  if (fn.code === 'UE') {
+    const org = rest.join(' ').trim();
+    return org ? `${fn.route}?customer=${encodeURIComponent(org)}` : fn.route;
   }
   if (fn.code !== 'CUS') return fn.route;
   const org = rest.join(' ').trim();

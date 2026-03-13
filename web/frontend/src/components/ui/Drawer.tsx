@@ -7,9 +7,17 @@ interface DrawerProps {
   title: string;
   children: ReactNode;
   widthClassName?: string;
+  contentClassName?: string;
 }
 
-export default function Drawer({ open, onClose, title, children, widthClassName = 'w-full max-w-xl' }: DrawerProps) {
+export default function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+  widthClassName = 'w-full max-w-xl',
+  contentClassName = 'flex-1 overflow-auto p-4',
+}: DrawerProps) {
   if (!open) return null;
 
   return (
@@ -19,7 +27,7 @@ export default function Drawer({ open, onClose, title, children, widthClassName 
           <h2 className="text-base font-semibold text-content-primary">{title}</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </header>
-        <div className="flex-1 overflow-auto p-4">{children}</div>
+        <div className={contentClassName}>{children}</div>
       </section>
     </div>
   );

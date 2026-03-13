@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Badge, Button, Card, DataTable, EmptyState, LoadingState, StatTile } from '@/components/ui';
+import { Badge, Card, DataTable, EmptyState, LoadingState, StatTile } from '@/components/ui';
 import TerminalShell from '@/components/terminal/TerminalShell';
-import OrganizationDrillPanel from '@/components/terminal/OrganizationDrillPanel';
 import { num, pct, runWarehouseQuerySafe, usd } from '@/lib/warehouse';
 
 interface Snapshot {
@@ -38,7 +37,6 @@ export default function ExecutiveTerminalPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [triggers, setTriggers] = useState<TriggerRow[]>([]);
   const [orgRows, setOrgRows] = useState<OrganizationRow[]>([]);
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(null);
 
   const fmtUsd = (value: number | null) => (value == null ? 'n/a' : usd(value));
   const fmtPct = (value: number | null) => (value == null ? 'n/a' : pct(value));
@@ -90,13 +88,6 @@ export default function ExecutiveTerminalPage() {
         setTriggers([
           {
             function_name: 'GTM',
-            signal: 'Open pipeline',
-            value: fmtUsd(pipeline),
-            action: 'Re-rank campaign spend vs win rate',
-            href: '/terminal/gtm',
-          },
-          {
-            function_name: 'Growth',
             signal: 'Activation 7d',
             value: fmtPct(activation),
             action: 'Prioritize urgent trial-rescue tasks',
@@ -115,13 +106,6 @@ export default function ExecutiveTerminalPage() {
             value: fmtPct(budgetUtilization),
             action: 'Cut overrun sources, protect gross margin',
             href: '/terminal/finance',
-          },
-          {
-            function_name: 'Ops',
-            signal: 'Sessions 30d',
-            value: fmtInt(sessions30d),
-            action: 'Watch load and timeout envelope',
-            href: '/terminal/ops',
           },
         ]);
 
@@ -160,7 +144,7 @@ export default function ExecutiveTerminalPage() {
   if (loading) {
     return (
       <TerminalShell active="executive" title="Executive Terminal" subtitle="Cross-functional control room for the entire business.">
-        <LoadingState title="Loading executive terminal" description="Compiling finance, GTM, growth, product, and ops signals." />
+        <LoadingState title="Loading executive terminal" description="Compiling finance, growth, product, and executive signals." />
       </TerminalShell>
     );
   }
@@ -176,10 +160,6 @@ export default function ExecutiveTerminalPage() {
   return (
     <TerminalShell active="executive" title="Executive Terminal" subtitle="Cross-functional control room for the entire business.">
       <div className="space-y-3">
-        {selectedOrganizationId ? (
-          <OrganizationDrillPanel organizationId={selectedOrganizationId} onClose={() => setSelectedOrganizationId(null)} />
-        ) : null}
-
         <section className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <StatTile label="MRR" value={fmtUsd(snapshot.mrr)} trend="up" />
           <StatTile label="Open Pipeline" value={fmtUsd(snapshot.pipeline)} trend="up" />
@@ -229,9 +209,12 @@ export default function ExecutiveTerminalPage() {
                 render: (row) => (
                   row.organization_id
                     ? (
-                      <Button size="sm" variant="ghost" onClick={() => setSelectedOrganizationId(row.organization_id)}>
+                      <Link
+                        href={`/terminal/unit-economics?customer=${encodeURIComponent(row.organization_id)}`}
+                        className="inline-flex items-center rounded border border-border bg-surface-secondary px-2 py-1 text-xs font-medium text-content-primary hover:bg-surface-tertiary"
+                      >
                         Open
-                      </Button>
+                      </Link>
                     )
                     : 'n/a'
                 ),
