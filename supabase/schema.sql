@@ -31,6 +31,22 @@ CREATE TABLE plans (
 );
 
 -- -----------------------------------------------------------------------------
+-- PLAN_ECONOMICS (time-bounded plan cost assumptions)
+-- -----------------------------------------------------------------------------
+CREATE TABLE plan_economics (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    plan_id                     UUID NOT NULL REFERENCES plans(id),
+    expected_cost_per_hour_usd  NUMERIC(10, 4) NOT NULL CHECK (expected_cost_per_hour_usd >= 0),
+    effective_start             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    effective_end               TIMESTAMPTZ,
+    notes                       TEXT,
+    created_at                  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ DEFAULT NOW(),
+    CHECK (effective_end IS NULL OR effective_end > effective_start),
+    UNIQUE(plan_id, effective_start)
+);
+
+-- -----------------------------------------------------------------------------
 -- ORGANIZATIONS (the paying entity)
 -- -----------------------------------------------------------------------------
 CREATE TABLE organizations (
@@ -579,6 +595,8 @@ CREATE INDEX idx_org_members_user_id ON organization_members(user_id);
 -- Subscriptions
 CREATE INDEX idx_subscriptions_org_id ON subscriptions(organization_id);
 CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX idx_plan_economics_plan_id ON plan_economics(plan_id);
+CREATE INDEX idx_plan_economics_effective_window ON plan_economics(effective_start, effective_end);
 
 -- API Keys
 CREATE INDEX idx_api_keys_org_id ON api_keys(organization_id);
@@ -674,6 +692,10 @@ CREATE TRIGGER trg_users_updated_at
 
 CREATE TRIGGER trg_subscriptions_updated_at
     BEFORE UPDATE ON subscriptions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_plan_economics_updated_at
+    BEFORE UPDATE ON plan_economics
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 CREATE TRIGGER trg_projects_updated_at

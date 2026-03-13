@@ -59,6 +59,7 @@ This rebuilds:
 | `users` | 1 row per user | Individual users | `id` |
 | `organization_members` | 1 row per membership | User to organization relationship | `id`, `organization_id`, `user_id` |
 | `plans` | 1 row per plan | Subscription pricing plans | `id` |
+| `plan_economics` | 1 row per plan economics revision | Expected per-hour cost assumptions by plan over time | `id`, `plan_id` |
 | `subscriptions` | 1 row per subscription | Organization subscriptions to plans | `id`, `organization_id`, `plan_id` |
 | `api_keys` | 1 row per key | API keys for programmatic access | `id`, `organization_id` |
 | `projects` | 1 row per project | Project container for sessions | `id`, `organization_id` |

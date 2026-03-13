@@ -27,6 +27,35 @@ models:
         tests:
           - not_null
 
+  - name: customer_unit_economics_monthly
+    description: Monthly customer-level expected cost, revenue, margin, and utilization rollup.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: metric_month
+        tests:
+          - not_null
+      - name: total_session_hours
+        tests:
+          - not_null
+      - name: expected_cost_usd
+        tests:
+          - not_null
+
+  - name: firm_unit_economics_monthly
+    description: Monthly company rollup of expected cost, revenue, blended cost/hour, and utilization.
+    columns:
+      - name: metric_month
+        tests:
+          - not_null
+      - name: total_expected_cost_usd
+        tests:
+          - not_null
+      - name: total_realized_revenue_usd
+        tests:
+          - not_null
+
   - name: ramp_spend_monthly
     description: Monthly spend by organization and source from Ramp-like data.
     columns:
@@ -83,3 +112,59 @@ models:
       - name: budget_variance_usd
         tests:
           - not_null
+
+  - name: customer_usage_billing_export
+    description: Billing export view with period-correct overage logic across mid-cycle plan changes.
+    columns:
+      - name: organization_id
+        tests:
+          - not_null
+      - name: billing_period_start
+        tests:
+          - not_null
+      - name: billing_period_end
+        tests:
+          - not_null
+      - name: ledger_sessions_count
+        tests:
+          - not_null
+      - name: corrected_overage_sessions
+        tests:
+          - not_null
+      - name: naive_overage_sessions
+        tests:
+          - not_null
+      - name: overage_leakage_delta
+        tests:
+          - not_null
+
+unit_tests:
+  - name: customer_usage_billing_export_preserves_predowngrade_overage
+    model: customer_usage_billing_export
+    given:
+      - input: ref('stg_usage_records')
+        rows:
+          - {usage_record_id: ur_1, organization_id: org_1, subscription_id: sub_2, period_start: "2026-02-01", period_end: "2026-02-28", sessions_count: 7, session_minutes: 35.00, bytes_downloaded: 7000, bytes_uploaded: 700, proxy_requests: 0, created_at: "2026-03-01 00:00:00", updated_at: "2026-03-01 00:00:00", _synced_at: "2026-03-01 00:00:00"}
+      - input: ref('stg_plans')
+        rows:
+          - {plan_id: plan_starter, plan_name: starter, sessions_limit_monthly: 4}
+          - {plan_id: plan_free, plan_name: free, sessions_limit_monthly: 2}
+      - input: ref('stg_subscriptions')
+        rows:
+          - {subscription_id: sub_1, organization_id: org_1, plan_id: plan_starter, status: canceled, current_period_start: "2026-02-01 00:00:00", current_period_end: "2026-02-14 23:59:59", created_at: "2026-02-01 00:00:00"}
+          - {subscription_id: sub_2, organization_id: org_1, plan_id: plan_free, status: active, current_period_start: "2026-02-15 00:00:00", current_period_end: "2026-03-14 23:59:59", created_at: "2026-02-15 00:00:00"}
+      - input: ref('stg_sessions')
+        rows:
+          - {session_id: s1, organization_id: org_1, created_at: "2026-02-02 00:00:00"}
+          - {session_id: s2, organization_id: org_1, created_at: "2026-02-03 00:00:00"}
+          - {session_id: s3, organization_id: org_1, created_at: "2026-02-04 00:00:00"}
+          - {session_id: s4, organization_id: org_1, created_at: "2026-02-10 00:00:00"}
+          - {session_id: s5, organization_id: org_1, created_at: "2026-02-11 00:00:00"}
+          - {session_id: s6, organization_id: org_1, created_at: "2026-02-12 00:00:00"}
+          - {session_id: s7, organization_id: org_1, created_at: "2026-02-20 00:00:00"}
+      - input: ref('stg_organizations')
+        rows:
+          - {organization_id: org_1, organization_name: Leak Labs, billing_email: billing@leaklabs.example}
+    expect:
+      rows:
+        - {organization_id: org_1, billing_period_start: "2026-02-01", billing_period_end: "2026-02-28", ledger_sessions_count: 7, corrected_entitled_sessions: 3.0, corrected_overage_sessions: 4.0, current_plan_sessions_limit: 2, naive_snapshot_sessions_count: 1, naive_overage_sessions: 0.0, overage_leakage_delta: 4.0}

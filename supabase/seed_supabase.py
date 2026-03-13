@@ -53,6 +53,7 @@ def main():
     
     print(f"\nGenerated:")
     print(f"  - {len(gen.plans)} plans")
+    print(f"  - {len(gen.plan_economics)} plan economics rows")
     print(f"  - {len(gen.organizations)} organizations")
     print(f"  - {len(gen.users)} users")
     print(f"  - {len(gen.subscriptions)} subscriptions")
@@ -82,7 +83,7 @@ def main():
     print("=" * 60)
     
     # Plans
-    print("\n[1/10] Inserting plans...")
+    print("\n[1/11] Inserting plans...")
     plans_data = [{
         "id": p["id"],
         "name": p["name"],
@@ -97,9 +98,22 @@ def main():
     } for p in gen.plans]
     supabase.table("plans").insert(plans_data).execute()
     print(f"    ✓ {len(plans_data)} plans")
+
+    # Plan Economics
+    print("\n[2/11] Inserting plan economics...")
+    plan_economics_data = [{
+        "id": pe["id"],
+        "plan_id": pe["plan_id"],
+        "expected_cost_per_hour_usd": float(pe["expected_cost_per_hour_usd"]),
+        "effective_start": pe["effective_start"],
+        "effective_end": pe["effective_end"],
+        "notes": pe["notes"],
+    } for pe in gen.plan_economics]
+    supabase.table("plan_economics").insert(plan_economics_data).execute()
+    print(f"    ✓ {len(plan_economics_data)} plan economics rows")
     
     # Organizations
-    print("\n[2/10] Inserting organizations...")
+    print("\n[3/11] Inserting organizations...")
     orgs_data = [{
         "id": o["id"],
         "name": o["name"],
@@ -112,7 +126,7 @@ def main():
     print(f"    ✓ {len(orgs_data)} organizations")
     
     # Users
-    print("\n[3/10] Inserting users...")
+    print("\n[4/11] Inserting users...")
     users_data = [{
         "id": u["id"],
         "email": u["email"],
@@ -126,7 +140,7 @@ def main():
     print(f"    ✓ {len(users_data)} users")
     
     # Organization Members
-    print("\n[4/10] Inserting organization members...")
+    print("\n[5/11] Inserting organization members...")
     members_data = [{
         "id": m["id"],
         "organization_id": m["organization_id"],
@@ -137,7 +151,7 @@ def main():
     print(f"    ✓ {len(members_data)} members")
     
     # Subscriptions
-    print("\n[5/10] Inserting subscriptions...")
+    print("\n[6/11] Inserting subscriptions...")
     subs_data = [{
         "id": s["id"],
         "organization_id": s["organization_id"],
@@ -153,7 +167,7 @@ def main():
     print(f"    ✓ {len(subs_data)} subscriptions")
     
     # API Keys
-    print("\n[6/10] Inserting API keys...")
+    print("\n[7/11] Inserting API keys...")
     keys_data = [{
         "id": k["id"],
         "organization_id": k["organization_id"],
@@ -170,7 +184,7 @@ def main():
     print(f"    ✓ {len(keys_data)} API keys")
     
     # Projects
-    print("\n[7/10] Inserting projects...")
+    print("\n[8/11] Inserting projects...")
     projects_data = [{
         "id": p["id"],
         "organization_id": p["organization_id"],
@@ -185,7 +199,7 @@ def main():
     print(f"    ✓ {len(projects_data)} projects")
     
     # Browser Sessions (batch insert)
-    print("\n[8/10] Inserting browser sessions...")
+    print("\n[9/11] Inserting browser sessions...")
     sessions_data = [{
         "id": s["id"],
         "organization_id": s["organization_id"],
@@ -216,7 +230,7 @@ def main():
         print(f"    ✓ {min(i+batch_size, len(sessions_data))}/{len(sessions_data)} sessions")
     
     # Session Events (limit to 10k for speed)
-    print("\n[9/10] Inserting session events (limited to 10k)...")
+    print("\n[10/11] Inserting session events (limited to 10k)...")
     events_data = [{
         "id": e["id"],
         "session_id": e["session_id"],
@@ -233,7 +247,7 @@ def main():
         print(f"    ✓ {min(i+batch_size, len(events_data))}/{len(events_data)} events")
     
     # Usage Records
-    print("\n[10/10] Inserting usage records & invoices...")
+    print("\n[11/11] Inserting usage records & invoices...")
     usage_data = [{
         "id": u["id"],
         "organization_id": u["organization_id"],

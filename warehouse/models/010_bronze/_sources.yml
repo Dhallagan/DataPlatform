@@ -44,6 +44,14 @@ sources:
             tests:
               - unique
               - not_null
+
+      - name: plan_economics
+        description: Time-bounded expected cost assumptions by plan
+        columns:
+          - name: id
+            tests:
+              - unique
+              - not_null
       
       - name: subscriptions
         description: Organization subscriptions to plans

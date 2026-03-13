@@ -38,6 +38,7 @@ def main():
     
     print(f"\nGenerated:")
     print(f"  - {len(gen.plans)} plans")
+    print(f"  - {len(gen.plan_economics)} plan economics rows")
     print(f"  - {len(gen.organizations)} organizations")
     print(f"  - {len(gen.users)} users")
     print(f"  - {len(gen.sessions)} sessions")
@@ -63,7 +64,7 @@ def main():
         return True
     
     # 1. Plans
-    print("\n[1/10] Inserting plans...")
+    print("\n[1/11] Inserting plans...")
     plans_data = [{
         "id": p["id"],
         "name": p["name"],
@@ -77,9 +78,21 @@ def main():
         "has_priority_support": p["has_priority_support"],
     } for p in gen.plans]
     if not insert("plans", plans_data): return
+
+    # 2. Plan Economics
+    print("\n[2/11] Inserting plan economics...")
+    plan_economics_data = [{
+        "id": pe["id"],
+        "plan_id": pe["plan_id"],
+        "expected_cost_per_hour_usd": float(pe["expected_cost_per_hour_usd"]),
+        "effective_start": pe["effective_start"],
+        "effective_end": pe["effective_end"],
+        "notes": pe["notes"],
+    } for pe in gen.plan_economics]
+    if not insert("plan_economics", plan_economics_data): return
     
-    # 2. Organizations
-    print("\n[2/10] Inserting organizations...")
+    # 3. Organizations
+    print("\n[3/11] Inserting organizations...")
     orgs_data = [{
         "id": o["id"],
         "name": o["name"],
@@ -90,8 +103,8 @@ def main():
     } for o in gen.organizations]
     if not insert("organizations", orgs_data): return
     
-    # 3. Users
-    print("\n[3/10] Inserting users...")
+    # 4. Users
+    print("\n[4/11] Inserting users...")
     users_data = [{
         "id": u["id"],
         "email": u["email"],
@@ -103,8 +116,8 @@ def main():
     } for u in gen.users]
     if not insert("users", users_data): return
     
-    # 4. Organization Members
-    print("\n[4/10] Inserting organization members...")
+    # 5. Organization Members
+    print("\n[5/11] Inserting organization members...")
     members_data = [{
         "id": m["id"],
         "organization_id": m["organization_id"],
@@ -113,8 +126,8 @@ def main():
     } for m in gen.org_members]
     if not insert("organization_members", members_data): return
     
-    # 5. Subscriptions
-    print("\n[5/10] Inserting subscriptions...")
+    # 6. Subscriptions
+    print("\n[6/11] Inserting subscriptions...")
     subs_data = [{
         "id": s["id"],
         "organization_id": s["organization_id"],
@@ -128,8 +141,8 @@ def main():
     } for s in gen.subscriptions]
     if not insert("subscriptions", subs_data): return
     
-    # 6. API Keys
-    print("\n[6/10] Inserting API keys...")
+    # 7. API Keys
+    print("\n[7/11] Inserting API keys...")
     keys_data = [{
         "id": k["id"],
         "organization_id": k["organization_id"],
@@ -144,8 +157,8 @@ def main():
     } for k in gen.api_keys]
     if not insert("api_keys", keys_data): return
     
-    # 7. Projects
-    print("\n[7/10] Inserting projects...")
+    # 8. Projects
+    print("\n[8/11] Inserting projects...")
     projects_data = [{
         "id": p["id"],
         "organization_id": p["organization_id"],
@@ -158,8 +171,8 @@ def main():
     } for p in gen.projects]
     if not insert("projects", projects_data): return
     
-    # 8. Browser Sessions
-    print("\n[8/10] Inserting browser sessions...")
+    # 9. Browser Sessions
+    print("\n[9/11] Inserting browser sessions...")
     sessions_data = [{
         "id": s["id"],
         "organization_id": s["organization_id"],
@@ -183,8 +196,8 @@ def main():
     } for s in gen.sessions]
     if not insert("browser_sessions", sessions_data): return
     
-    # 9. Session Events (limit to 10k)
-    print("\n[9/10] Inserting session events (10k sample)...")
+    # 10. Session Events (limit to 10k)
+    print("\n[10/11] Inserting session events (10k sample)...")
     events_data = [{
         "id": e["id"],
         "session_id": e["session_id"],
@@ -196,8 +209,8 @@ def main():
     } for e in gen.session_events[:10000]]
     if not insert("session_events", events_data): return
     
-    # 10. Usage Records & Invoices
-    print("\n[10/10] Inserting usage records & invoices...")
+    # 11. Usage Records & Invoices
+    print("\n[11/11] Inserting usage records & invoices...")
     usage_data = [{
         "id": u["id"],
         "organization_id": u["organization_id"],

@@ -130,6 +130,7 @@ def sql_jsonb(data: Dict) -> str:
 class DataGenerator:
     def __init__(self):
         self.plans = []
+        self.plan_economics = []
         self.organizations = []
         self.users = []
         self.org_members = []
@@ -165,6 +166,27 @@ class DataGenerator:
                 "created_at": sql_timestamp(START_DATE),
             }
             self.plans.append(plan)
+
+    def generate_plan_economics(self):
+        """Generate baseline plan economics assumptions."""
+        expected_hourly_costs = {
+            "free": 0.60,
+            "starter": 0.95,
+            "pro": 1.45,
+            "enterprise": 2.10,
+        }
+
+        for plan in self.plans:
+            economics = {
+                "id": gen_uuid(),
+                "plan_id": plan["id"],
+                "expected_cost_per_hour_usd": expected_hourly_costs.get(plan["name"], 1.00),
+                "effective_start": sql_timestamp(START_DATE),
+                "effective_end": None,
+                "notes": f"Seed baseline economics for {plan['name']} plan",
+                "created_at": sql_timestamp(START_DATE),
+            }
+            self.plan_economics.append(economics)
     
     def generate_organizations(self):
         """Generate organizations."""
@@ -487,6 +509,8 @@ class DataGenerator:
         """Generate all data."""
         print("Generating plans...")
         self.generate_plans()
+        print("Generating plan economics...")
+        self.generate_plan_economics()
         print("Generating organizations...")
         self.generate_organizations()
         print("Generating users and memberships...")
@@ -514,6 +538,12 @@ class DataGenerator:
         for p in self.plans:
             sql_parts.append(f"""INSERT INTO plans (id, name, display_name, monthly_price, sessions_per_month, concurrent_sessions, session_duration_mins, has_stealth_mode, has_residential_proxies, has_priority_support, created_at)
 VALUES ('{p["id"]}', {escape_sql(p["name"])}, {escape_sql(p["display_name"])}, {p["monthly_price"]}, {p["sessions_per_month"] or 'NULL'}, {p["concurrent_sessions"]}, {p["session_duration_mins"]}, {str(p["has_stealth_mode"]).upper()}, {str(p["has_residential_proxies"]).upper()}, {str(p["has_priority_support"]).upper()}, '{p["created_at"]}');""")
+
+        # Plan Economics
+        sql_parts.append("\n-- Plan Economics")
+        for pe in self.plan_economics:
+            sql_parts.append(f"""INSERT INTO plan_economics (id, plan_id, expected_cost_per_hour_usd, effective_start, effective_end, notes, created_at)
+VALUES ('{pe["id"]}', '{pe["plan_id"]}', {pe["expected_cost_per_hour_usd"]}, '{pe["effective_start"]}', {escape_sql(pe["effective_end"])}, {escape_sql(pe["notes"])}, '{pe["created_at"]}');""")
         
         # Organizations
         sql_parts.append("\n-- Organizations")
@@ -584,6 +614,7 @@ if __name__ == "__main__":
     
     print(f"\nGenerated:")
     print(f"  - {len(gen.plans)} plans")
+    print(f"  - {len(gen.plan_economics)} plan economics rows")
     print(f"  - {len(gen.organizations)} organizations")
     print(f"  - {len(gen.users)} users")
     print(f"  - {len(gen.org_members)} org memberships")

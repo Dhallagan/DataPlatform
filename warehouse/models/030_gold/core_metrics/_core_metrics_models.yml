@@ -230,6 +230,14 @@ models:
           - not_null
           - unique
 
+  - name: fct_terminal_unit_economics_monthly
+    description: Monthly terminal rollup for blended expected cost, utilization, and gross margin.
+    columns:
+      - name: metric_month
+        tests:
+          - not_null
+          - unique
+
   - name: fct_terminal_customer_daily
     description: Customer-level daily fact spine for revenue, risk, reliability, and queue drilldowns.
     columns:

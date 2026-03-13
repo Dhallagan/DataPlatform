@@ -40,6 +40,20 @@ models:
         tests:
           - not_null
 
+  - name: stg_plan_economics
+    description: Cleaned time-bounded plan cost assumptions from bronze.
+    columns:
+      - name: plan_economics_id
+        tests:
+          - not_null
+          - unique
+      - name: plan_id
+        tests:
+          - not_null
+      - name: expected_cost_per_hour_usd
+        tests:
+          - not_null
+
   - name: stg_subscriptions
     description: Cleaned subscriptions from bronze.
     columns:
@@ -59,6 +73,26 @@ models:
           - accepted_values:
               arguments:
                 values: ['trialing', 'active', 'past_due', 'canceled']
+
+  - name: stg_usage_records
+    description: Cleaned usage records from bronze billing periods.
+    columns:
+      - name: usage_record_id
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        tests:
+          - not_null
+      - name: period_start
+        tests:
+          - not_null
+      - name: period_end
+        tests:
+          - not_null
+      - name: sessions_count
+        tests:
+          - not_null
 
   - name: stg_sessions
     description: Cleaned sessions from bronze.

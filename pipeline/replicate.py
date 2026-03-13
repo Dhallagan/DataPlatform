@@ -86,6 +86,7 @@ REQUEST_SESSION = create_request_session()
 # - watermark_column: (optional) column for incremental extraction
 TABLES = [
     {"source_table": "plans", "source_schema": "public", "bronze_table": "plans"},
+    {"source_table": "plan_economics", "source_schema": "public", "bronze_table": "plan_economics", "watermark_column": "updated_at"},
     {"source_table": "organizations", "source_schema": "public", "bronze_table": "organizations", "watermark_column": "updated_at"},
     {"source_table": "users", "source_schema": "public", "bronze_table": "users", "watermark_column": "updated_at"},
     {"source_table": "organization_members", "source_schema": "public", "bronze_table": "organization_members"},
@@ -188,6 +189,20 @@ def create_bronze_schema(conn):
             has_stealth_mode BOOLEAN,
             has_residential_proxies BOOLEAN,
             has_priority_support BOOLEAN,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_supabase.plan_economics (
+            id VARCHAR PRIMARY KEY,
+            plan_id VARCHAR,
+            expected_cost_per_hour_usd DECIMAL(10,4),
+            effective_start TIMESTAMP,
+            effective_end TIMESTAMP,
+            notes VARCHAR,
             created_at TIMESTAMP,
             updated_at TIMESTAMP,
             _synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
