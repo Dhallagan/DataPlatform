@@ -6,7 +6,7 @@ export interface TerminalFunctionArg {
 }
 
 export interface TerminalFunctionSpec {
-  code: 'CHAT' | 'OV' | 'EXE' | 'BS' | 'GTM' | 'FIN' | 'UE' | 'PROD' | 'OPS' | 'CUS' | 'META';
+  code: 'CHAT' | 'OV' | 'EXE' | 'BS' | 'GTM' | 'LEADS' | 'FIN' | 'UE' | 'PROD' | 'OPS' | 'CUS' | 'META';
   aliases: string[];
   title: string;
   route: string;
@@ -81,6 +81,18 @@ export const TERMINAL_FUNCTIONS: TerminalFunctionSpec[] = [
     primaryModel: 'gtm.growth_task_queue + gtm.agg_unit_economics_monthly',
     objective: 'Run the weekly GTM operating review from one surface.',
     output: 'Execution queue, funnel performance, channel efficiency, and unit economics.',
+    args: [],
+  },
+  {
+    code: 'LEADS',
+    aliases: ['REV', 'REVIEW', 'QUEUE', 'INBOX'],
+    title: 'Leads',
+    route: '/terminal/leads',
+    usage: 'LEADS',
+    summary: 'Human-in-the-loop leads workbench.',
+    primaryModel: 'gtm.growth_task_queue + gtm.action_log',
+    objective: 'Review queued GTM work with context, draft, and approval actions in one surface.',
+    output: 'Owner queue, selected account context, draft, and review actions.',
     args: [],
   },
   {
@@ -196,9 +208,19 @@ function parseMonthShortcut(raw: string): string | null {
   if (/^\d{4}-\d{2}$/.test(token)) return token;
   if (/^\d{4}-\d{2}-\d{2}$/.test(token)) return token.slice(0, 7);
 
-  if (token === 'THIS' || token === 'TM' || token === 'CURRENT') return toMonthParam(now);
+  if (token === 'THIS' || token === 'THIS MONTH' || token === 'TM' || token === 'CURRENT' || token === 'CURRENT MONTH') {
+    return toMonthParam(now);
+  }
   if (token === 'LM' || token === 'LAST' || token === 'PREV' || token === 'PREVIOUS') {
     const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return toMonthParam(d);
+  }
+  if (token === 'LAST MONTH' || token === 'PREVIOUS MONTH') {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return toMonthParam(d);
+  }
+  if (token === 'LAST QUARTER') {
+    const d = new Date(now.getFullYear(), now.getMonth() - 2, 1);
     return toMonthParam(d);
   }
 
@@ -223,6 +245,13 @@ export function resolveTerminalCommandHref(raw: string): string | null {
   const fn = findTerminalFunction(token);
   if (!fn) return null;
   if (fn.code === 'OV' || fn.code === 'BS') {
+    const upperArg = rest.join(' ').trim().toUpperCase();
+    if (upperArg === 'FIN' || upperArg === 'FINANCE') return '/terminal/finance';
+    if (upperArg === 'GTM' || upperArg === 'GROWTH') return '/terminal/growth';
+    if (upperArg === 'UE' || upperArg === 'UNIT' || upperArg === 'UNIT ECON' || upperArg === 'UNIT ECONOMICS') {
+      return '/terminal/unit-economics';
+    }
+    if (upperArg === 'LEADS' || upperArg === 'REV' || upperArg === 'REVIEW') return '/terminal/leads';
     const monthParam = parseMonthShortcut(rest.join(' '));
     return monthParam ? `${fn.route}?month=${encodeURIComponent(monthParam)}` : fn.route;
   }

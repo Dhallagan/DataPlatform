@@ -9,7 +9,7 @@ import { findTerminalFunction, resolveTerminalCommandHref, VISIBLE_TERMINAL_FUNC
 interface TerminalShellProps {
   title: string;
   subtitle: string;
-  active: 'chat' | 'overview' | 'executive' | 'gtm' | 'growth' | 'product' | 'finance' | 'unit' | 'ops' | 'meta';
+  active: 'chat' | 'overview' | 'review' | 'executive' | 'gtm' | 'growth' | 'product' | 'finance' | 'unit' | 'ops' | 'meta';
   children: ReactNode;
   search?: ReactNode;
   headerMeta?: ReactNode;
@@ -20,6 +20,7 @@ const NAV_ITEMS: { key: TerminalShellProps['active']; label: string; href: strin
   { key: 'chat', label: 'Chat', href: '/terminal/chat' },
   { key: 'overview', label: 'Overview', href: '/terminal' },
   { key: 'growth', label: 'GTM', href: '/terminal/growth' },
+  { key: 'review', label: 'Leads', href: '/terminal/leads' },
   { key: 'finance', label: 'Finance', href: '/terminal/finance' },
   { key: 'unit', label: 'Unit Econ', href: '/terminal/unit-economics' },
   { key: 'meta', label: 'Meta', href: '/terminal/meta' },
@@ -408,7 +409,7 @@ function DefaultTerminalSearch() {
         onFocus={() => setShowTypeahead(true)}
         onBlur={() => setTimeout(() => setShowTypeahead(false), 120)}
         onKeyDown={onKeyDown}
-        placeholder="Type: OV, OV.LM, GTM, FIN, UE <customer>, EXE, META  (/ to focus)"
+        placeholder="Try: OV, OV THIS MONTH, GTM, FIN, UE <customer>, META  (/ to focus)"
       />
       {activeFunction ? (
         <div className="mt-1 rounded border border-border bg-surface-primary px-2 py-1 text-[11px] text-content-secondary">
@@ -450,6 +451,34 @@ function BrowserbaseMark() {
 
 export default function TerminalShell({ title, subtitle, active, children, search, headerMeta, sidebarExtra }: TerminalShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const onGlobalKey = (event: globalThis.KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const target = event.target as HTMLElement | null;
+      const isEditable = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (isEditable) return;
+
+      if (event.key === '1') {
+        event.preventDefault();
+        router.push('/terminal');
+        return;
+      }
+      if (event.key === '2') {
+        event.preventDefault();
+        router.push('/terminal/growth');
+        return;
+      }
+      if (event.key === '3') {
+        event.preventDefault();
+        router.push('/terminal/leads');
+      }
+    };
+
+    window.addEventListener('keydown', onGlobalKey);
+    return () => window.removeEventListener('keydown', onGlobalKey);
+  }, [router]);
 
   return (
     <div
